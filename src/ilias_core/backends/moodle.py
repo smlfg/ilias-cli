@@ -405,7 +405,7 @@ class MoodleBackend(Backend):
         if code in _EXPIRED_ERROR_CODES:
             raise SessionExpiredError(
                 f"{label}: Token ungültig oder abgelaufen (errorcode {code}){suffix}.",
-                hint="Erneut mit `ilias login` anmelden (kein automatischer Re-Login).",
+                hint=f"Erneut mit `ilias login --instance {self.instance.key}` anmelden (kein automatischer Re-Login).",
             )
         if code in _AUTH_ERROR_CODES:
             raise AuthenticationError(
