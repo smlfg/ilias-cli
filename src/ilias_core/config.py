@@ -70,6 +70,7 @@ class InstanceProfile:
     username_label: str = "Benutzername"
     lms: str = BACKEND_ILIAS
     label: str = ""
+    city: str = ""
 
 
 BUILTIN_INSTANCES: dict[str, InstanceProfile] = {
@@ -78,6 +79,7 @@ BUILTIN_INSTANCES: dict[str, InstanceProfile] = {
         base_url="https://ilias.hs-heilbronn.de",
         client_id="iliashhn",
         auth=AUTH_OIDC_KEYCLOAK,
+        city="Heilbronn",
     ),
     "uni-mannheim": InstanceProfile(
         name="uni-mannheim",
@@ -85,6 +87,7 @@ BUILTIN_INSTANCES: dict[str, InstanceProfile] = {
         client_id="ILIAS",
         auth=AUTH_SAML_SHIBBOLETH,
         username_label="Uni-ID (Kennung)",
+        city="Mannheim",
     ),
     "hs-mannheim": InstanceProfile(
         name="hs-mannheim",
@@ -93,6 +96,7 @@ BUILTIN_INSTANCES: dict[str, InstanceProfile] = {
         auth=AUTH_MOODLE_TOKEN,
         lms=BACKEND_MOODLE,
         label="Moodle Hochschule Mannheim (Lernplattform TH-MA)",
+        city="Mannheim",
     ),
 }
 
