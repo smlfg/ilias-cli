@@ -121,7 +121,15 @@ unerwartetes HTML, `status` ok / `invalidtoken` (3) / ohne Token (2), `logout`,
 `--json`-Formen, ISO-8601, Passwort- und Token-Freiheit in Ausgabe und Dateien,
 Dateirechte 0600 und Instanz-/Config-Auflösung (ohne Netz).
 
-## 8. Noch offen
+## 8. Verifikationsstand
+
+Bisher **ausschließlich** gegen den lokalen Fake-Moodle (`tests/moodle/fake_moodle.py`)
+verifiziert, nie gegen `moodle.hs-mannheim.de` selbst: es existieren keine echten
+Zugangsdaten, und ein Live-Test ist eine eigene Entscheidung des Nutzers (Nutzungsordnung
+der Hochschule, §8 N3 der Anforderungen). Der erste echte Lauf gehört in eine separate
+REAL_TEST.md-Notiz, wie auf `feature/saml-uni-mannheim`.
+
+## 9. Noch offen
 
 Kurse, Dateien, Fristen (F2–F5) für Moodle fehlen; der ILIAS-Login (OIDC/Keycloak +
 TOTP) ist in diesem Branch weiterhin nur ein Platzhalter (Exit 1), `status`/`logout`
