@@ -1,28 +1,36 @@
-"""Dünne CLI-Hülle (Skeleton). Siehe INTERFACE.md für den Vertrag."""
+"""Typer-App: ``ilias`` (Entry point)."""
+
+from __future__ import annotations
 
 import typer
+from rich.console import Console
 
-app = typer.Typer(help="ILIAS-CLI (Skeleton)", no_args_is_help=True)
+from ilias_cli.commands.login import login_command
+from ilias_cli.commands.logout import logout_command
+from ilias_cli.commands.status import status_command
 
-
-def _not_implemented() -> None:
-    typer.echo("Nicht implementiert (Skeleton auf main).", err=True)
-    raise typer.Exit(code=1)
-
-
-@app.command()
-def login(json_output: bool = typer.Option(False, "--json")) -> None:
-    """Login (OIDC/Keycloak + TOTP)."""
-    _not_implemented()
-
-
-@app.command()
-def status(json_output: bool = typer.Option(False, "--json")) -> None:
-    """Session prüfen."""
-    _not_implemented()
+app = typer.Typer(
+    name="ilias",
+    help="ILIAS-CLI (HHN): login, status, logout.",
+    no_args_is_help=True,
+    pretty_exceptions_show_locals=False,
+)
+err_console = Console(stderr=True)
 
 
-@app.command()
-def logout(json_output: bool = typer.Option(False, "--json")) -> None:
-    """Session löschen."""
-    _not_implemented()
+@app.callback()
+def _callback() -> None:
+    """ILIAS-CLI."""
+
+
+app.command("login")(login_command)
+app.command("status")(status_command)
+app.command("logout")(logout_command)
+
+
+def main() -> None:
+    app()
+
+
+if __name__ == "__main__":
+    main()

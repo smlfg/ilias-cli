@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Zwei-Faktor-Authentifizierung - Keycloak</title>
+</head>
+<body>
+  <div id="kc-otp-login-form-wrapper">
+    <div class="alert alert-error pf-m-visible" role="alert">
+      <span class="pf-c-alert__icon"><i class="pficon pficon-error-circle-o"></i></span>
+      <p class="pf-c-alert__description" id="kc-error-message">Invalid OTP code.</p>
+    </div>
+    <form id="kc-otp-login-form" action="https://login.hs-heilbronn.de/realms/hhn/login-actions/authenticate?session_code=SESSIONCODE123&amp;execution=EXEC789&amp;client_id=hhn_common_ilias&amp;tab_id=TAB789" method="post">
+      <input type="hidden" name="session_code" value="SESSIONCODE123" />
+      <div class="form-group">
+        <label for="otp">Authentifizierungscode</label>
+        <input id="otp" name="otp" type="text" inputmode="numeric" />
+      </div>
+      <div class="form-group">
+        <input id="kc-login" type="submit" value="Anmelden" />
+      </div>
+    </form>
+  </div>
+</body>
+</html>

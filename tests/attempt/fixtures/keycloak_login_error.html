@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Anmeldung - Keycloak</title>
+</head>
+<body>
+  <div id="kc-form-login-wrapper">
+    <div class="alert alert-error pf-m-visible" role="alert">
+      <span class="pf-c-alert__icon"><i class="pficon pficon-error-circle-o"></i></span>
+      <p class="pf-c-alert__description" id="kc-error-message">Invalid username or password.</p>
+    </div>
+    <form id="kc-form-login" action="https://login.hs-heilbronn.de/realms/hhn/login-actions/authenticate?session_code=SESSIONCODE123&amp;execution=EXEC456&amp;client_id=hhn_common_ilias&amp;tab_id=TAB789" method="post">
+      <input type="hidden" name="credentialId" value="" />
+      <div class="form-group">
+        <label for="username">Benutzername oder E-Mail</label>
+        <input id="username" name="username" type="text" value="testuser" />
+      </div>
+      <div class="form-group">
+        <label for="password">Passwort</label>
+        <input id="password" name="password" type="password" />
+      </div>
+      <div class="form-group">
+        <input id="kc-login" type="submit" value="Anmelden" />
+      </div>
+    </form>
+  </div>
+</body>
+</html>
