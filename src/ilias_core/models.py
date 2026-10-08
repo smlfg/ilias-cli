@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .secrets import Secret
-from .timeutil import now_iso
+from .timeutil import now_iso, semester_order
 
 
 @dataclass(frozen=True)
@@ -143,12 +143,15 @@ class ErrorResult:
     hint: str | None = None
     instance: str | None = None
     lms: str | None = None
+    candidates: list[dict[str, Any]] | None = None
     timestamp: str = field(default_factory=now_iso)
 
     def to_json_dict(self) -> dict[str, Any]:
         error: dict[str, Any] = {"code": self.error_code, "message": self.message}
         if self.hint:
             error["hint"] = self.hint
+        if self.candidates:
+            error["candidates"] = self.candidates
         data: dict[str, Any] = {
             "ok": False,
             "command": self.command,
@@ -159,3 +162,168 @@ class ErrorResult:
             "timestamp": self.timestamp,
         }
         return data
+
+
+# --------------------------------------------------------------- F2/F3: Kurse
+@dataclass(frozen=True)
+class Course:
+    """Ein Kurs aus core_enrol_get_users_courses (Moodle-REST)."""
+
+    id: int
+    fullname: str
+    shortname: str
+    category: int | None = None
+    semester: str | None = None
+    visible: bool = True
+    startdate: str | None = None
+    enddate: str | None = None
+    url: str = ""
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "fullname": self.fullname,
+            "shortname": self.shortname,
+            "category": self.category,
+            "semester": self.semester,
+            "visible": self.visible,
+            "startdate": self.startdate,
+            "enddate": self.enddate,
+            "url": self.url,
+        }
+
+    def to_ref_dict(self) -> dict[str, Any]:
+        return {"id": self.id, "fullname": self.fullname, "shortname": self.shortname}
+
+    def sort_key(self) -> tuple[bool, int, str]:
+        """Sortierung: Semester neueste zuerst, None zuletzt, dann fullname."""
+        return (self.semester is None, -semester_order(self.semester), self.fullname.lower())
+
+
+@dataclass(frozen=True)
+class CoursesResult:
+    instance: str
+    lms: str
+    courses: list[Course] = field(default_factory=list)
+    timestamp: str = field(default_factory=now_iso)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "instance": self.instance,
+            "lms": self.lms,
+            "count": len(self.courses),
+            "courses": [course.to_json_dict() for course in self.courses],
+            "timestamp": self.timestamp,
+        }
+
+
+@dataclass(frozen=True)
+class FolderNode:
+    name: str
+    path: str
+    children: list["ContentNode"] = field(default_factory=list)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": "folder",
+            "name": self.name,
+            "path": self.path,
+            "children": [child.to_json_dict() for child in self.children],
+        }
+
+
+@dataclass(frozen=True)
+class FileNode:
+    name: str
+    path: str
+    fileurl: str
+    size: int | None = None
+    mimetype: str | None = None
+    timemodified: str | None = None
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": "file",
+            "name": self.name,
+            "path": self.path,
+            "size": self.size,
+            "mimetype": self.mimetype,
+            "timemodified": self.timemodified,
+            "fileurl": self.fileurl,
+        }
+
+
+@dataclass(frozen=True)
+class UrlNode:
+    name: str
+    url: str
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {"type": "url", "name": self.name, "url": self.url}
+
+
+ContentNode = FolderNode | FileNode | UrlNode
+
+
+@dataclass(frozen=True)
+class Module:
+    id: int
+    name: str
+    modname: str
+    url: str | None = None
+    visible: bool = True
+    uservisible: bool = True
+    availability: str | None = None
+    children: list[ContentNode] = field(default_factory=list)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "modname": self.modname,
+            "url": self.url,
+            "visible": self.visible,
+            "uservisible": self.uservisible,
+            "availability": self.availability,
+            "children": [child.to_json_dict() for child in self.children],
+        }
+
+
+@dataclass(frozen=True)
+class Section:
+    id: int
+    number: int
+    name: str
+    visible: bool = True
+    uservisible: bool = True
+    modules: list[Module] = field(default_factory=list)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "number": self.number,
+            "name": self.name,
+            "visible": self.visible,
+            "uservisible": self.uservisible,
+            "modules": [module.to_json_dict() for module in self.modules],
+        }
+
+
+@dataclass(frozen=True)
+class CourseContentsResult:
+    instance: str
+    lms: str
+    course: dict[str, Any]
+    sections: list[Section] = field(default_factory=list)
+    depth: int | None = None
+    timestamp: str = field(default_factory=now_iso)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "instance": self.instance,
+            "lms": self.lms,
+            "course": self.course,
+            "depth": self.depth,
+            "sections": [section.to_json_dict() for section in self.sections],
+            "timestamp": self.timestamp,
+        }

@@ -15,6 +15,7 @@ Ablauf:
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -25,24 +26,43 @@ from ..errors import (
     ParseError,
     SessionExpiredError,
 )
-from ..http import HttpClient, json_body
-from ..models import Credentials, LoginResult, LogoutResult, SiteInfo, StatusResult
+from ..http import HttpClient, json_body, json_value
+from ..models import (
+    Course,
+    Credentials,
+    FileNode,
+    FolderNode,
+    LoginResult,
+    LogoutResult,
+    Module,
+    Section,
+    SiteInfo,
+    StatusResult,
+    UrlNode,
+)
 from ..secrets import REDACTED
 from ..session import SessionStore
+from ..timeutil import semester_from_timestamp, timestamp_to_iso
 from .base import Backend
 
 TOKEN_PATH = "/login/token.php"
 REST_PATH = "/webservice/rest/server.php"
 SERVICE = "moodle_mobile_app"
 SITE_INFO_FUNCTION = "core_webservice_get_site_info"
+COURSES_FUNCTION = "core_enrol_get_users_courses"
+CONTENTS_FUNCTION = "core_course_get_contents"
 REST_FORMAT = "json"
 
 # Fehlercodes, die einen abgelehnten Login bedeuten (Moodle: login/token.php)
 _AUTH_ERROR_CODES = {"invalidlogin", "invaliduser", "invalidaccount"}
-_DENIED_ERROR_CODES = {"accessexception", "nopermission", "nopermtostore", "forbidden"}
+_DENIED_ERROR_CODES = {"accessexception", "nopermission", "nopermissions", "nopermtostore", "forbidden"}
+_EXPIRED_ERROR_CODES = {"invalidtoken", "requireloginerror"}
 # N2: Statusprüfung ist idempotent und darf einmal wiederholt werden
 _SITE_INFO_ATTEMPTS = 2
 _RETRY_BACKOFF_SECONDS = 0.5
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 def scrub(text: str, secrets: tuple[str, ...] = ()) -> str:
@@ -51,6 +71,87 @@ def scrub(text: str, secrets: tuple[str, ...] = ()) -> str:
         if secret and secret in text:
             text = text.replace(secret, REDACTED)
     return text
+
+
+def _as_text(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    return ""
+
+
+def _as_int(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _plain_text(text: str, limit: int | None = None) -> str:
+    """HTML entfernen, Whitespace normalisieren, optional kürzen (label/availability)."""
+    if not text:
+        return ""
+    cleaned = _WHITESPACE_RE.sub(" ", _HTML_TAG_RE.sub(" ", text)).strip()
+    if limit is not None and len(cleaned) > limit:
+        cleaned = cleaned[:limit].rstrip() + "…"
+    return cleaned
+
+
+def _file_node(content: dict[str, Any]) -> FileNode:
+    size = _as_int(content.get("filesize"))
+    return FileNode(
+        name=_as_text(content.get("filename")) or "Datei",
+        path=_as_text(content.get("filepath")) or "/",
+        fileurl=_as_text(content.get("fileurl")),
+        size=size,
+        mimetype=_as_text(content.get("mimetype")) or None,
+        timemodified=timestamp_to_iso(content.get("timemodified")),
+    )
+
+
+def _folder_tree(contents: list[dict[str, Any]], prefix: str = "/") -> list[Any]:
+    """Datei-Inhalte anhand ihrer `filepath` zu verschachtelten Ordnerknoten bauen."""
+    folders: dict[str, list[dict[str, Any]]] = {}
+    order: list[str] = []
+    files: list[Any] = []
+    for content in contents:
+        filepath = _as_text(content.get("filepath")) or "/"
+        if not filepath.endswith("/"):
+            filepath += "/"
+        if filepath == prefix:
+            files.append(_file_node(content))
+            continue
+        if not filepath.startswith(prefix):
+            continue
+        segment = filepath[len(prefix):].split("/", 1)[0]
+        if not segment:
+            continue
+        if segment not in folders:
+            folders[segment] = []
+            order.append(segment)
+        folders[segment].append(content)
+    nodes: list[Any] = []
+    for segment in sorted(order):
+        sub = prefix + segment + "/"
+        nodes.append(FolderNode(name=segment, path=sub, children=_folder_tree(folders[segment], sub)))
+    nodes.extend(files)
+    return nodes
+
+
+def _children_from_contents(contents: list[dict[str, Any]]) -> list[Any]:
+    urls: list[Any] = []
+    files: list[dict[str, Any]] = []
+    for content in contents:
+        ctype = content.get("type")
+        if ctype == "url":
+            urls.append(
+                UrlNode(name=_as_text(content.get("filename")) or "Link", url=_as_text(content.get("fileurl")))
+            )
+        elif ctype == "file":
+            files.append(content)
+    return _folder_tree(files) + urls
 
 
 class MoodleBackend(Backend):
@@ -108,7 +209,145 @@ class MoodleBackend(Backend):
         removed = self.store.delete()
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
 
+    # -- F2: Kurse -------------------------------------------------------
+    def courses(self) -> list[Course]:
+        session = self._require_session()
+        try:
+            with HttpClient(self.base_url) as client:
+                info = self._site_info(client, session.token, label="Kursliste")
+                if info.userid is None:
+                    raise ParseError("Kursliste: Benutzer-ID fehlt in core_webservice_get_site_info.")
+                data = self._rest_call(
+                    client, session.token, COURSES_FUNCTION, {"userid": info.userid}, label="Kursliste"
+                )
+        except SessionExpiredError:
+            self.store.delete()
+            raise
+        if not isinstance(data, list):
+            raise ParseError("Kursliste: core_enrol_get_users_courses lieferte kein Array.")
+        courses = [self._course_from_json(item) for item in data if isinstance(item, dict)]
+        courses.sort(key=lambda course: course.sort_key())
+        return courses
+
+    # -- F3: Kursinhalt --------------------------------------------------
+    def course_contents(self, course_id: int) -> list[Section]:
+        session = self._require_session()
+        try:
+            with HttpClient(self.base_url) as client:
+                data = self._rest_call(
+                    client, session.token, CONTENTS_FUNCTION, {"courseid": course_id}, label="Kursinhalt"
+                )
+        except SessionExpiredError:
+            self.store.delete()
+            raise
+        if not isinstance(data, list):
+            raise ParseError("Kursinhalt: core_course_get_contents lieferte kein Array.")
+        return [
+            self._section_from_json(item, index)
+            for index, item in enumerate(data)
+            if isinstance(item, dict)
+        ]
+
+    def _require_session(self):
+        session = self.store.load()
+        if session is None:
+            raise NotLoggedInError(
+                f"Keine gespeicherte Session für {self.instance.key}.",
+                hint=f"Erst `ilias login --instance {self.instance.key}` aufrufen.",
+            )
+        return session
+
     # -- Moodle-spezifisch ----------------------------------------------
+    def _rest_call(
+        self,
+        client: HttpClient,
+        token: str,
+        function: str,
+        params: dict[str, Any] | None = None,
+        *,
+        label: str,
+        attempts: int = 1,
+    ) -> Any:
+        """REST-Aufruf mit Token im POST-Body; Moodle-Fehlerobjekte werden abgebildet."""
+        payload: dict[str, str] = {
+            "wstoken": token,
+            "wsfunction": function,
+            "moodlewsrestformat": REST_FORMAT,
+        }
+        if params:
+            payload.update({key: str(value) for key, value in params.items()})
+        data: Any = None
+        for attempt in range(attempts):
+            try:
+                response = client.post_form(REST_PATH, payload, label=label)
+            except NetworkError:
+                if attempt == attempts - 1:
+                    raise
+                time.sleep(_RETRY_BACKOFF_SECONDS)
+                continue
+            data = json_value(response, label=label)
+            if isinstance(data, dict):
+                self._raise_for_error(data, label=label, secrets=(token,))
+            return data
+        raise ParseError(f"{label}: keine Antwort.")  # pragma: no cover
+
+    def _course_from_json(self, item: dict[str, Any]) -> Course:
+        course_id = _as_int(item.get("id"))
+        if course_id is None:
+            raise ParseError("Kursliste: Kurs ohne gültige id.")
+        start = item.get("startdate")
+        return Course(
+            id=course_id,
+            fullname=_as_text(item.get("fullname")),
+            shortname=_as_text(item.get("shortname")),
+            category=_as_int(item.get("category")),
+            semester=semester_from_timestamp(start),
+            visible=bool(item.get("visible", 1)),
+            startdate=timestamp_to_iso(start),
+            enddate=timestamp_to_iso(item.get("enddate")),
+            url=f"{self.base_url}/course/view.php?id={course_id}",
+        )
+
+    def _section_from_json(self, item: dict[str, Any], index: int) -> Section:
+        number = _as_int(item.get("section"))
+        raw_modules = item.get("modules")
+        modules = (
+            [self._module_from_json(module) for module in raw_modules if isinstance(module, dict)]
+            if isinstance(raw_modules, list)
+            else []
+        )
+        return Section(
+            id=_as_int(item.get("id")) or 0,
+            number=number if number is not None else index,
+            name=_as_text(item.get("name")),
+            visible=bool(item.get("visible", 1)),
+            uservisible=bool(item.get("uservisible", True)),
+            modules=modules,
+        )
+
+    def _module_from_json(self, item: dict[str, Any]) -> Module:
+        modname = _as_text(item.get("modname"))
+        name = _as_text(item.get("name"))
+        if modname == "label":
+            name = _plain_text(name, limit=60)
+        raw_contents = item.get("contents")
+        contents = (
+            [content for content in raw_contents if isinstance(content, dict)]
+            if isinstance(raw_contents, list)
+            else []
+        )
+        availability = _plain_text(_as_text(item.get("availabilityinfo"))) or None
+        return Module(
+            id=_as_int(item.get("id")) or 0,
+            name=name,
+            modname=modname,
+            url=_as_text(item.get("url")) or None,
+            visible=bool(item.get("visible", 1)),
+            uservisible=bool(item.get("uservisible", True)),
+            availability=availability,
+            children=_children_from_contents(contents),
+        )
+
     def _request_token(self, client: HttpClient, credentials: Credentials) -> str:
         label = "Login (login/token.php)"
         password = credentials.password.reveal()
@@ -126,25 +365,11 @@ class MoodleBackend(Backend):
 
     def _site_info(self, client: HttpClient, token: str, *, label: str) -> SiteInfo:
         """core_webservice_get_site_info: prüft den Token und liefert Konto + Plattform."""
-        payload = {
-            "wstoken": token,
-            "wsfunction": SITE_INFO_FUNCTION,
-            "moodlewsrestformat": REST_FORMAT,
-        }
-        data: dict[str, Any] | None = None
-        for attempt in range(_SITE_INFO_ATTEMPTS):
-            try:
-                response = client.post_form(REST_PATH, payload, label=label)
-            except NetworkError:
-                if attempt == _SITE_INFO_ATTEMPTS - 1:
-                    raise
-                time.sleep(_RETRY_BACKOFF_SECONDS)
-                continue
-            data = json_body(response, label=label)
-            self._raise_for_error(data, label=label, secrets=(token,))
-            break
-        if data is None:  # pragma: no cover - die Schleife endet immer mit raise oder data
-            raise ParseError(f"{label}: keine Antwort.")
+        data = self._rest_call(
+            client, token, SITE_INFO_FUNCTION, label=label, attempts=_SITE_INFO_ATTEMPTS
+        )
+        if not isinstance(data, dict):
+            raise ParseError(f"{label}: core_webservice_get_site_info lieferte kein Objekt.")
         info = SiteInfo.from_moodle_json(data)
         if not (info.username or info.fullname or info.sitename):
             raise ParseError(f"{label}: Antwort enthält weder username noch fullname noch sitename.")
@@ -164,9 +389,9 @@ class MoodleBackend(Backend):
         code = errorcode if isinstance(errorcode, str) else "unknown"
         detail = scrub(error if isinstance(error, str) else "", secrets)
         suffix = f": {detail}" if detail else ""
-        if code == "invalidtoken":
+        if code in _EXPIRED_ERROR_CODES:
             raise SessionExpiredError(
-                f"{label}: Token ungültig oder abgelaufen (errorcode invalidtoken){suffix}.",
+                f"{label}: Token ungültig oder abgelaufen (errorcode {code}){suffix}.",
                 hint="Erneut mit `ilias login` anmelden (kein automatischer Re-Login).",
             )
         if code in _AUTH_ERROR_CODES:

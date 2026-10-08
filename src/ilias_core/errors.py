@@ -20,10 +20,17 @@ class CoreError(Exception):
     exit_code: int = EXIT_AUTH
     code: str = "error"
 
-    def __init__(self, message: str, *, hint: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        hint: str | None = None,
+        candidates: list[dict] | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.hint = hint
+        self.candidates = candidates
 
     def __repr__(self) -> str:  # pragma: no cover - Diagnose
         return f"{type(self).__name__}({self.message!r})"
@@ -76,3 +83,17 @@ class NotSupportedError(CoreError):
 
     exit_code = EXIT_AUTH
     code = "not_supported"
+
+
+class CourseNotFoundError(CoreError):
+    """Kein Kurs passt auf die Suche (F3)."""
+
+    exit_code = EXIT_AUTH
+    code = "course_not_found"
+
+
+class CourseAmbiguousError(CoreError):
+    """Mehrere Kurse passen auf die Suche (F3); die Kandidaten hängen an `candidates`."""
+
+    exit_code = EXIT_AUTH
+    code = "course_ambiguous"

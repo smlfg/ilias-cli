@@ -24,6 +24,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TOKEN_PATH = "/login/token.php"
 REST_PATH = "/webservice/rest/server.php"
+SITE_INFO_FUNCTION = "core_webservice_get_site_info"
+COURSES_FUNCTION = "core_enrol_get_users_courses"
+CONTENTS_FUNCTION = "core_course_get_contents"
 SITE_NAME = "Lernplattform TH-MA"
 
 MAINTENANCE_HTML = """<!DOCTYPE html><html lang="de"><head><title>Wartung | moodle</title></head>
@@ -34,6 +37,298 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html><html lang="de"><head><title>Anmeldeseite | 
 <input type="hidden" name="logintoken" value="REDACTED">
 <input type="text" name="username" id="username"><input type="password" name="password">
 <button type="submit">Anmelden</button></form></body></html>"""
+
+# Realistische Fixtures (Moodle 4.x-Form). Zeitstempel in Europe/Berlin:
+# 1774994400 = 2026-04-01 (SoSe 2026), 1790805600 = 2026-10-01 (WiSe 2026/27).
+COURSES: list[dict] = [
+    {
+        "id": 101,
+        "shortname": "PR1-WS26",
+        "fullname": "Programmieren 1 (WS 2026/27)",
+        "displayname": "Programmieren 1",
+        "enrolledusercount": 120,
+        "idnumber": "",
+        "visible": 1,
+        "summary": "<p>Einführung in die Programmierung</p>",
+        "summaryformat": 1,
+        "format": "topics",
+        "category": 17,
+        "progress": None,
+        "completed": False,
+        "startdate": 1790805600,
+        "enddate": 1806357600,
+        "lastaccess": 1791000000,
+        "isfavourite": False,
+        "hidden": False,
+        "overviewfiles": [],
+        "timemodified": 1790000000,
+    },
+    {
+        "id": 102,
+        "shortname": "MA1-SS26",
+        "fullname": "Mathematik für Ingenieure (SoSe 2026)",
+        "visible": 1,
+        "category": 18,
+        "startdate": 1774994400,
+        "enddate": 1790805600,
+        "timemodified": 1774000000,
+    },
+    {
+        "id": 103,
+        "shortname": "MA2-WS26",
+        "fullname": "Mathematik 2 (WS 2026/27)",
+        "visible": 1,
+        "category": 18,
+        "startdate": 1790805600,
+        "enddate": 1806357600,
+        "timemodified": 1790000000,
+    },
+    {
+        "id": 104,
+        "shortname": "ALT-000",
+        "fullname": "Altdatenbank (ohne Startdatum)",
+        "visible": 1,
+        "startdate": 0,
+        "enddate": 0,
+        "timemodified": 1600000000,
+    },
+    {
+        "id": 105,
+        "shortname": "HID-1",
+        "fullname": "Versteckter Kurs",
+        "visible": 0,
+        "category": 19,
+        "startdate": 1790805600,
+        "enddate": 1806357600,
+        "timemodified": 1790000000,
+    },
+]
+
+
+def _file(filename, filepath, filesize, fileurl, timemodified, mimetype):
+    return {
+        "type": "file",
+        "filename": filename,
+        "filepath": filepath,
+        "filesize": filesize,
+        "fileurl": fileurl,
+        "timecreated": timemodified,
+        "timemodified": timemodified,
+        "sortorder": 0,
+        "mimetype": mimetype,
+        "isexternalfile": False,
+        "userid": 55,
+        "author": "Prof. X",
+        "license": "allrightsreserved",
+    }
+
+
+COURSE_CONTENTS: dict[int, list[dict]] = {
+    101: [
+        {
+            "id": 501,
+            "name": "Allgemeines",
+            "visible": 1,
+            "summary": "",
+            "summaryformat": 1,
+            "section": 0,
+            "hiddenbynumsections": 0,
+            "uservisible": True,
+            "modules": [
+                {
+                    "id": 9001,
+                    "url": "https://moodle.hs-mannheim.de/mod/folder/view.php?id=9001",
+                    "name": "Übungsblätter",
+                    "instance": 33,
+                    "contextid": 777,
+                    "visible": 1,
+                    "uservisible": True,
+                    "visibleoncoursepage": 1,
+                    "modicon": "folder",
+                    "modname": "folder",
+                    "modplural": "Verzeichnisse",
+                    "indent": 0,
+                    "noviewlink": False,
+                    "completion": 0,
+                    "contents": [
+                        _file(
+                            "blatt01.pdf",
+                            "/",
+                            183456,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/777/mod_folder/content/0/blatt01.pdf?forcedownload=1",
+                            1790900000,
+                            "application/pdf",
+                        ),
+                        _file(
+                            "blatt02.pdf",
+                            "/Blatt 2/",
+                            204800,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/777/mod_folder/content/0/Blatt%202/blatt02.pdf?forcedownload=1",
+                            1790910000,
+                            "application/pdf",
+                        ),
+                        _file(
+                            "aufgabe1.pdf",
+                            "/Blatt 1/",
+                            51200,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/777/mod_folder/content/0/Blatt%201/aufgabe1.pdf?forcedownload=1",
+                            1790920000,
+                            "application/pdf",
+                        ),
+                        _file(
+                            "loesung1.md",
+                            "/Blatt 1/Lösungen/",
+                            4096,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/777/mod_folder/content/0/Blatt%201/L%C3%B6sungen/loesung1.md?forcedownload=1",
+                            1790930000,
+                            "text/markdown",
+                        ),
+                    ],
+                    "contentsinfo": {"filescount": 4, "filessize": 444552},
+                },
+                {
+                    "id": 9002,
+                    "url": "https://moodle.hs-mannheim.de/mod/url/view.php?id=9002",
+                    "name": "Moodle-Doku",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "url",
+                    "modplural": "Links",
+                    "contents": [
+                        {
+                            "type": "url",
+                            "filename": "Moodle-Doku",
+                            "filepath": "/",
+                            "filesize": 0,
+                            "fileurl": "https://docs.moodle.org/",
+                            "timemodified": 1790800000,
+                            "mimetype": "text/html",
+                        }
+                    ],
+                },
+                {
+                    "id": 9003,
+                    "url": "https://moodle.hs-mannheim.de/mod/label/view.php?id=9003",
+                    "name": "Willkommen im Kurs <p>Bitte <strong>alles</strong> lesen</p>",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "label",
+                    "modplural": "Textfelder",
+                },
+            ],
+        },
+        {
+            "id": 502,
+            "name": "Übung 1",
+            "visible": 1,
+            "section": 1,
+            "uservisible": True,
+            "modules": [
+                {
+                    "id": 9010,
+                    "url": "https://moodle.hs-mannheim.de/mod/resource/view.php?id=9010",
+                    "name": "Skript Kapitel 1",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "resource",
+                    "modplural": "Dateien",
+                    "contents": [
+                        _file(
+                            "kapitel1.pdf",
+                            "/",
+                            1048576,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/778/mod_resource/content/0/kapitel1.pdf?forcedownload=1",
+                            1791000000,
+                            "application/pdf",
+                        )
+                    ],
+                },
+                {
+                    "id": 9011,
+                    "url": "https://moodle.hs-mannheim.de/mod/assign/view.php?id=9011",
+                    "name": "Aufgabe 1",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "assign",
+                    "modplural": "Aufgaben",
+                },
+                {
+                    "id": 9012,
+                    "url": "https://moodle.hs-mannheim.de/mod/forum/view.php?id=9012",
+                    "name": "Fragenforum",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "forum",
+                    "modplural": "Foren",
+                },
+            ],
+        },
+        {
+            "id": 503,
+            "name": "",
+            "visible": 1,
+            "section": 2,
+            "uservisible": True,
+            "modules": [],
+        },
+        {
+            "id": 504,
+            "name": "Altklausuren",
+            "visible": 1,
+            "section": 3,
+            "uservisible": True,
+            "modules": [
+                {
+                    "id": 9020,
+                    "url": "https://moodle.hs-mannheim.de/mod/folder/view.php?id=9020",
+                    "name": "[Klausur] Altklausuren",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "folder",
+                    "modplural": "Verzeichnisse",
+                    "contents": [
+                        _file(
+                            "klausur2025.pdf",
+                            "/",
+                            307200,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/779/mod_folder/content/0/klausur2025.pdf?forcedownload=1",
+                            1791100000,
+                            "application/pdf",
+                        )
+                    ],
+                },
+                {
+                    "id": 9021,
+                    "url": "https://moodle.hs-mannheim.de/mod/quiz/view.php?id=9021",
+                    "name": "Probeklausur",
+                    "visible": 0,
+                    "uservisible": True,
+                    "modname": "quiz",
+                    "modplural": "Tests",
+                },
+                {
+                    "id": 9022,
+                    "url": "https://moodle.hs-mannheim.de/mod/choice/view.php?id=9022",
+                    "name": "Evaluation",
+                    "visible": 1,
+                    "uservisible": False,
+                    "modname": "choice",
+                    "modplural": "Abstimmungen",
+                    "availabilityinfo": "<div>Nicht verfügbar, es sei denn: <strong>Einschreibung</strong></div>",
+                },
+                {
+                    "id": 9023,
+                    "url": "https://moodle.hs-mannheim.de/mod/page/view.php?id=9023",
+                    "name": "Lernziele",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "page",
+                    "modplural": "Textseiten",
+                },
+            ],
+        },
+    ]
+}
 
 
 @dataclass
@@ -207,15 +502,6 @@ def _make_handler(world: FakeMoodle):
             token = rec.form_value("wstoken") or ""
             function = rec.form_value("wsfunction") or ""
             fmt = rec.form_value("moodlewsrestformat") or ""
-            if function != "core_webservice_get_site_info" or fmt != "json":
-                return self._send_json(
-                    200,
-                    {
-                        "exception": "webservice_access_exception",
-                        "errorcode": "accessexception",
-                        "message": "Access to the specified function is not allowed",
-                    },
-                )
             if world.rest_mode == "echo_token":
                 return self._send_json(
                     401,
@@ -237,18 +523,60 @@ def _make_handler(world: FakeMoodle):
                         "debuginfo": "Token was not found in the database",
                     },
                 )
+            if fmt != "json":
+                return self._send_json(
+                    200,
+                    {
+                        "exception": "webservice_access_exception",
+                        "errorcode": "accessexception",
+                        "message": "Access to the specified function is not allowed",
+                    },
+                )
+            if function == SITE_INFO_FUNCTION:
+                return self._send_json(
+                    200,
+                    {
+                        "sitename": world.sitename,
+                        "username": username,
+                        "fullname": world.fullname,
+                        "userid": world.userid,
+                        "siteurl": world.base_url,
+                        "release": "4.5 (Build: 20250210)",
+                        "version": "2025021000",
+                        "lang": "de",
+                        "siteid": 1,
+                    },
+                )
+            if function == COURSES_FUNCTION:
+                if not rec.form_value("userid"):
+                    return self._send_json(
+                        200,
+                        {
+                            "exception": "invalid_parameter_exception",
+                            "errorcode": "invalidparameter",
+                            "message": "userid is missing",
+                        },
+                    )
+                return self._send_json(200, COURSES)
+            if function == CONTENTS_FUNCTION:
+                try:
+                    course_id = int(rec.form_value("courseid") or "")
+                except ValueError:
+                    return self._send_json(
+                        200,
+                        {
+                            "exception": "invalid_parameter_exception",
+                            "errorcode": "invalidparameter",
+                            "message": "courseid is missing",
+                        },
+                    )
+                return self._send_json(200, COURSE_CONTENTS.get(course_id, []))
             return self._send_json(
                 200,
                 {
-                    "sitename": world.sitename,
-                    "username": username,
-                    "fullname": world.fullname,
-                    "userid": world.userid,
-                    "siteurl": world.base_url,
-                    "release": "4.5 (Build: 20250210)",
-                    "version": "2025021000",
-                    "lang": "de",
-                    "siteid": 1,
+                    "exception": "webservice_access_exception",
+                    "errorcode": "accessexception",
+                    "message": "Access to the specified function is not allowed",
                 },
             )
 
