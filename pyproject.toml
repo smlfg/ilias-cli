@@ -1,24 +1,26 @@
 [project]
 name = "ilias-cli"
-version = "0.0.0"
-description = "ILIAS-CLI (HHN): Skeleton-Vertrag. Implementierungen liegen auf attempt/*-Branches."
+version = "0.1.0"
+description = "ILIAS CLI (Login-Teil): login/status/logout via Keycloak/OIDC"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "typer>=0.12",
+    "typer>=0.9",
     "rich>=13",
     "httpx>=0.27",
-    "keyring>=24",
+    "beautifulsoup4>=4.12",
+    "pydantic>=2",
+    "keyring>=25",
+    "tomli>=2; python_version < '3.11'",
 ]
+authors = [{ name = "ilias-cli" }]
+license = { text = "MIT" }
 
 [project.optional-dependencies]
 browser = ["playwright>=1.40"]
 
 [project.scripts]
 ilias = "ilias_cli.main:app"
-
-[dependency-groups]
-dev = ["pytest>=8"]
 
 [build-system]
 requires = ["hatchling"]
@@ -29,3 +31,8 @@ packages = ["src/ilias_core", "src/ilias_cli"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
