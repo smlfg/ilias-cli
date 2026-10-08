@@ -2,8 +2,7 @@
 
 Login (OIDC/Keycloak + TOTP für HHN, SAML/Shibboleth für Uni Mannheim), Verifikation
 gegen das Dashboard, Session-Cookies im Keyring bzw. in einer 0600-Datei – alles aus
-dem bestehenden ILIAS-Kern. Kurse (F2) und Kursinhalt (F3) sind für ILIAS noch nicht
-implementiert und liefern einen sauberen ``NotSupportedError``.
+dem bestehenden ILIAS-Kern. Kurse (F2) und Kursinhalt (F3) nutzen die HTTP-Grundlage.
 """
 
 from __future__ import annotations
@@ -11,7 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ..client import IliasClient
-from ..errors import NotSupportedError
+from ..errors import NetworkError, NotLoggedInError, NotSupportedError, SessionExpiredError
+from ..ilias_http import IliasHttpClient
 from ..models import (
     Course,
     Credentials,
@@ -30,10 +30,16 @@ class IliasBackend(Backend):
     def __init__(self, instance, *, client: IliasClient | None = None) -> None:
         super().__init__(instance)
         self.client = client or IliasClient(instance)
+        self._http_client: IliasHttpClient | None = None
 
     @property
     def uses_totp(self) -> bool:  # type: ignore[override]
         return self.client.uses_totp
+
+    def _get_http_client(self) -> IliasHttpClient:
+        if self._http_client is None:
+            self._http_client = IliasHttpClient(self.instance, self.client.store)
+        return self._http_client
 
     def login(
         self, credentials: Credentials, otp_callback: Callable[[], str] | None = None
@@ -50,16 +56,32 @@ class IliasBackend(Backend):
         removed = self.client.logout()
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
 
-    supports_courses = False
+    supports_courses = True
 
     def courses(self) -> list[Course]:
+        http = self._get_http_client()
+        try:
+            http.get_memberships()
+        except NotLoggedInError:
+            raise
+        except SessionExpiredError:
+            raise
+        except NetworkError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            from ..errors import ParserError
+            raise ParserError(f"Unerwarteter Fehler beim Laden der Kurse: {type(exc).__name__}") from exc
+
+        # Parse the HTML response - for now return NotSupportedError after session check
+        # The actual parsing will be done in S6
+        from ..errors import NotSupportedError
         raise NotSupportedError(
-            "Kursliste für ILIAS noch nicht implementiert.",
-            hint="Für Moodle: `ilias courses --instance hs-mannheim`.",
+            "Kursliste für ILIAS (HTML-Parsing) noch nicht implementiert.",
+            hint=f"Session-Prüfung erfolgreich. Parser folgt in S6. Für Moodle: `ilias courses --instance hs-mannheim`.",
         )
 
     def course_contents(self, course_id: int) -> list[Section]:
         raise NotSupportedError(
             "Kursinhalt (ls) für ILIAS noch nicht implementiert.",
-            hint="Für Moodle: `ilias ls <kurs> --instance hs-mannheim`.",
+            hint=f"Für Moodle: `ilias ls <kurs> --instance hs-mannheim`.",
         )

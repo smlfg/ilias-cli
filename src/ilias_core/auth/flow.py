@@ -80,24 +80,32 @@ class KeycloakLoginFlow(BaseLoginFlow):
             message = parsers.extract_keycloak_error(html)
             raise AuthenticationError(message or "Benutzername oder Passwort ist falsch.")
 
-        totp_form = parsers.parse_keycloak_totp(html, str(response.url))
-        if totp_form is None:
+        # Handle TOTP with up to 3 attempts
+        for attempt in range(3):
+            totp_form = parsers.parse_keycloak_totp(html, str(response.url))
+            if totp_form is None:
+                return response
+
+            self._log_form("Keycloak-TOTP", totp_form)
+            if otp_callback is None:
+                raise AuthenticationError("TOTP-Code erforderlich.")
+            otp = otp_callback() or ""
+            if not otp.strip():
+                raise AuthenticationError("Kein TOTP-Code eingegeben.")
+
+            data = dict(totp_form.fields)
+            data["otp"] = otp
+            response = self._post(totp_form.action, data)
+
+            html = response.text
+            if parsers.is_keycloak_totp(html) or parsers.is_keycloak_login(html):
+                message = parsers.extract_keycloak_error(html)
+                if attempt == 2:  # Last attempt
+                    raise AuthenticationError(message or "TOTP-Code ist ungültig.")
+                # Continue to next attempt
+                continue
             return response
 
-        self._log_form("Keycloak-TOTP", totp_form)
-        if otp_callback is None:
-            raise AuthenticationError("TOTP-Code erforderlich.")
-        otp = otp_callback() or ""
-        if not otp.strip():
-            raise AuthenticationError("Kein TOTP-Code eingegeben.")
-
-        data = dict(totp_form.fields)
-        data["otp"] = otp
-        response = self._post(totp_form.action, data)
-
-        if parsers.is_keycloak_totp(response.text) or parsers.is_keycloak_login(
-            response.text
-        ):
-            message = parsers.extract_keycloak_error(response.text)
-            raise AuthenticationError(message or "TOTP-Code ist ungültig.")
-        return response
+        # Should not reach here, but just in case
+        message = parsers.extract_keycloak_error(html)
+        raise AuthenticationError(message or "TOTP-Code ist ungültig.")
