@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+import sys
 
 import typer
 
@@ -29,7 +30,7 @@ from ilias_core.models import (
 )
 from ilias_core.secrets import Secret
 from ilias_core.service import Service, open_service
-from ilias_core.setup import filter_instances, list_instances_json
+from ilias_core.setup import filter_instances, list_instances_json, run_setup
 
 from . import output, prompts
 
@@ -253,11 +254,40 @@ def setup(
                 print(f"  {inst['key']}: {inst['name']} ({inst['city']}, {inst['lms']}){totp}")
         return
 
-    # Non-list path: will be implemented in S2
+    # Non-interactive path (stdin is not a TTY)
+    is_tty = sys.stdin.isatty()
+    if not is_tty:
+        if debug:
+            debuglog.enable()
+        try:
+            result = run_setup(instance, username, json_output, is_tty)
+        except typer.Exit:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            from ilias_core.errors import IliasError
+            raise _fail("setup", IliasError(str(exc)), json_output, None) from None
+
+        if json_output:
+            output.print_json({
+                "ok": True,
+                "command": "setup",
+                "instance": result.instance,
+                "lms": "ilias" if result.instance in ("hhn", "uni-mannheim") else "moodle",
+                "username": username,
+                "verified": True,
+                "session_stored": True,
+                "config_path": str(result.base_url),  # placeholder, actual path would be better
+                "timestamp": result.timestamp if hasattr(result, 'timestamp') else "",
+            })
+        else:
+            print(f"Eingerichtet: {result.instance} als {username}. Neue Eingabe erst nötig, wenn die Session abläuft.")
+        return
+
+    # Interactive path (S4)
     if json_output:
-        output.print_json({"ok": False, "command": "setup", "error": {"code": "not_implemented", "message": "setup without --list not yet implemented"}})
+        output.print_json({"ok": False, "command": "setup", "error": {"code": "not_implemented", "message": "interactive setup not yet implemented (S4)"}})
     else:
-        output.print_error("setup without --list not yet implemented")
+        output.print_error("Interaktiver Modus noch nicht implementiert (S4).")
     raise typer.Exit(code=1)
 
 

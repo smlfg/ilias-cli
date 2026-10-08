@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -276,3 +277,63 @@ def load_instance(key: str | None = None, config: dict[str, Any] | None = None) 
 
     del config
     return load_config(instance=key)
+
+
+def save_config(config_dir: Path, instance_key: str, username: str) -> None:
+    """Aktualisiert die config.toml atomar: setzt `instance = "<key>"` und `[instances.<key>] username = "..."`.
+
+    Bestehende Werte (andere Instanzen, base_url-Overrides, etc.) bleiben erhalten.
+    """
+    config_file = config_dir / "config.toml"
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    data: dict[str, Any] = {}
+    if config_file.is_file():
+        try:
+            with config_file.open("rb") as handle:
+                data = tomllib.load(handle)
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            raise ConfigError(f"Konfiguration {config_file} ist ungültig: {exc}") from exc
+
+    # Top-level instance key
+    data["instance"] = instance_key
+
+    # Ensure instances table exists
+    if "instances" not in data:
+        data["instances"] = {}
+    if instance_key not in data["instances"]:
+        data["instances"][instance_key] = {}
+
+    # Set username for this instance (keep other keys)
+    data["instances"][instance_key]["username"] = username
+
+    # Write atomically: temp file + rename
+    import tempfile
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=config_dir, delete=False, suffix=".toml.tmp"
+    ) as tmp:
+        try:
+            # Simple TOML serialization for our flat structure
+            lines = []
+            for key, value in data.items():
+                if key == "instances":
+                    continue
+                if isinstance(value, str):
+                    lines.append(f'{key} = "{value}"')
+                else:
+                    lines.append(f"{key} = {value}")
+            lines.append("")
+            lines.append("[instances]")
+            for inst_key, inst_data in data["instances"].items():
+                lines.append(f"  [instances.{inst_key}]")
+                for inst_opt, inst_val in inst_data.items():
+                    if isinstance(inst_val, str):
+                        lines.append(f'    {inst_opt} = "{inst_val}"')
+                    else:
+                        lines.append(f"    {inst_opt} = {inst_val}")
+                lines.append("")
+            tmp.write("\n".join(lines))
+        finally:
+            tmp.close()
+        os.chmod(tmp.name, 0o600)
+        os.replace(tmp.name, config_file)
