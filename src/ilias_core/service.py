@@ -11,7 +11,16 @@ from typing import TYPE_CHECKING
 from .auth import prompt_credentials
 from .backends import get_backend
 from .config import Instance, load_instance
-from .models import Credentials, LoginResult, LogoutResult, StatusResult
+from .courses import apply_depth, resolve_course
+from .models import (
+    CourseContentsResult,
+    CourseListResult,
+    CourseRef,
+    Credentials,
+    LoginResult,
+    LogoutResult,
+    StatusResult,
+)
 
 if TYPE_CHECKING:  # vermeidet einen Import-Zyklus (backends -> models -> ...)
     from .backends.base import Backend
@@ -36,6 +45,28 @@ class Service:
 
     def logout(self) -> LogoutResult:
         return self.backend.logout()
+
+    def courses(self) -> CourseListResult:
+        """F2: eigene Kurse (neuestes Semester zuerst)."""
+        return self.backend.courses()
+
+    def ls(self, query: str, depth: int | None = None) -> CourseContentsResult:
+        """F3: Inhalt eines Kurses als Baum.
+
+        `query` ist eine Kurs-ID oder ein Stück aus Kurzname/Titel; die Auflösung
+        (eindeutig/mehrdeutig/nicht gefunden) passiert hier im Core, nicht in der
+        CLI. `depth` beschränkt die ausgegebene Tiefe (1 = nur Abschnitte).
+        """
+        listing = self.backend.courses()
+        course = resolve_course(listing.courses, query)
+        sections = apply_depth(self.backend.course_contents(course.id), depth)
+        return CourseContentsResult(
+            instance=self.instance.key,
+            lms=self.instance.lms,
+            course=CourseRef(id=course.id, fullname=course.fullname, shortname=course.shortname),
+            sections=sections,
+            depth=depth,
+        )
 
 
 def open_service(instance_key: str | None = None, config: dict | None = None) -> Service:

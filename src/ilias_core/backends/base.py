@@ -5,11 +5,19 @@ from __future__ import annotations
 import abc
 
 from ..config import Instance
-from ..models import Credentials, LoginResult, LogoutResult, StatusResult
+from ..models import (
+    Course,
+    CourseListResult,
+    Credentials,
+    LoginResult,
+    LogoutResult,
+    SectionNode,
+    StatusResult,
+)
 
 
 class Backend(abc.ABC):
-    """Ein Backend kapselt Login, Status und Logout einer Instanz."""
+    """Ein Backend kapselt Login, Status, Logout und die Lese-Operationen."""
 
     name: str = "abstract"
     supports_login: bool = False
@@ -36,3 +44,15 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def logout(self) -> LogoutResult:
         """Lokale Session löschen."""
+
+    @abc.abstractmethod
+    def courses(self) -> CourseListResult:
+        """Eigene Kurse des angemeldeten Benutzers (F2)."""
+
+    @abc.abstractmethod
+    def course_contents(self, course_id: int) -> tuple[SectionNode, ...]:
+        """Abschnitte und Module eines Kurses als Baum (F3).
+
+        Nur die Rohdaten: Auflösung der Kursangabe und `--depth` passieren in
+        `ilias_core.service.Service.ls`.
+        """

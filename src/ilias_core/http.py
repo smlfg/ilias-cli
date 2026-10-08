@@ -70,8 +70,13 @@ class HttpClient:
         return response
 
 
-def json_body(response: httpx.Response, *, label: str) -> dict[str, Any]:
-    """JSON-Objekt aus einer Antwort - sonst Parser-Fehler (Exit 5)."""
+def json_value(response: httpx.Response, *, label: str) -> Any:
+    """JSON aus einer Antwort - sonst Parser-Fehler (Exit 5).
+
+    Moodle antwortet je nach Funktion mit einem Objekt (`site_info`) oder einer
+    Liste (`core_enrol_get_users_courses`, `core_course_get_contents`); Fehler
+    kommen immer als Objekt mit `errorcode`/`exception`.
+    """
     text = response.text
     if not text.strip():
         raise ParseError(f"{label}: leere Antwort (HTTP {response.status_code}).")
@@ -81,12 +86,25 @@ def json_body(response: httpx.Response, *, label: str) -> dict[str, Any]:
             hint="Die Adresse liefert kein JSON - vermutlich falsche Basis-URL oder Wartungsseite.",
         )
     try:
-        data = json.loads(text)
+        return json.loads(text)
     except ValueError:
         raise ParseError(
             f"{label}: Antwort ist kein JSON (HTTP {response.status_code}).",
             hint="Erwartet wird eine JSON-Antwort des Moodle-Webservice.",
         ) from None
+
+
+def json_body(response: httpx.Response, *, label: str) -> dict[str, Any]:
+    """JSON-Objekt aus einer Antwort - sonst Parser-Fehler (Exit 5)."""
+    data = json_value(response, label=label)
     if not isinstance(data, dict):
         raise ParseError(f"{label}: JSON ist kein Objekt (Typ {type(data).__name__}).")
+    return data
+
+
+def json_array(response: httpx.Response, *, label: str) -> list[Any]:
+    """JSON-Liste aus einer Antwort - sonst Parser-Fehler (Exit 5)."""
+    data = json_value(response, label=label)
+    if not isinstance(data, list):
+        raise ParseError(f"{label}: JSON ist keine Liste (Typ {type(data).__name__}).")
     return data

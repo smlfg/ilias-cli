@@ -15,15 +15,26 @@ EXIT_PARSE = 5
 
 
 class CoreError(Exception):
-    """Basisklasse: trägt eine Meldung für Menschen und den Exit-Code."""
+    """Basisklasse: trägt eine Meldung für Menschen und den Exit-Code.
+
+    `details` sind maschinenlesbare Zusatzinformationen (z. B. die Kandidaten
+    einer mehrdeutigen Kursangabe); sie landen im Fehlerobjekt von `--json`.
+    """
 
     exit_code: int = EXIT_AUTH
     code: str = "error"
 
-    def __init__(self, message: str, *, hint: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        hint: str | None = None,
+        details: dict[str, object] | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.hint = hint
+        self.details: dict[str, object] = dict(details or {})
 
     def __repr__(self) -> str:  # pragma: no cover - Diagnose
         return f"{type(self).__name__}({self.message!r})"
@@ -76,3 +87,17 @@ class NotSupportedError(CoreError):
 
     exit_code = EXIT_AUTH
     code = "not_supported"
+
+
+class CourseNotFoundError(CoreError):
+    """Kein Kurs passt zur angegebenen Kurs-ID bzw. zum Suchbegriff (F3)."""
+
+    exit_code = EXIT_AUTH
+    code = "course_not_found"
+
+
+class CourseAmbiguousError(CoreError):
+    """Mehrere Kurse passen zur Kursangabe; die Kandidaten stehen im Fehlerobjekt."""
+
+    exit_code = EXIT_AUTH
+    code = "course_ambiguous"

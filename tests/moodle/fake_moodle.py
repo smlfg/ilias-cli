@@ -1,16 +1,20 @@
 """Lokaler Fake-Moodle-Server (nur stdlib, nur 127.0.0.1).
 
-Bildet genau die zwei Endpunkte nach, die der Login-Teil benutzt
+Bildet die Endpunkte nach, die der Login-Teil und F2/F3 benutzen
 (siehe real-fixtures/NOTES.md, Abschnitt "HS Mannheim Moodle"):
 
   POST /login/token.php              username, password, service=moodle_mobile_app
         -> {"token": ..., "privatetoken": null}
         -> {"error": "Invalid login, please try again", "errorcode": "invalidlogin"}
   POST /webservice/rest/server.php   wstoken, wsfunction, moodlewsrestformat
-        -> {"sitename", "username", "fullname", "userid", ...}
+        -> core_webservice_get_site_info: {"sitename", "username", "fullname", "userid", ...}
+        -> core_enrol_get_users_courses: [{"id", "shortname", "fullname", "startdate", ...}, ...]
+        -> core_course_get_contents:     [{"id", "section", "modules": [...]}, ...]
         -> {"exception": "moodle_exception", "errorcode": "invalidtoken", ...}
 
-Schalter für Fehlerszenarien: token_mode, rest_mode (siehe FakeMoodle).
+Schalter für Fehlerszenarien: token_mode, rest_mode (global), courses_mode und
+contents_mode pro Funktion (siehe FakeMoodle). Der Token wird immer im POST-Body
+geprüft und nie in einer URL erwartet.
 """
 
 from __future__ import annotations
@@ -21,9 +25,15 @@ import threading
 import urllib.parse
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any
+
+from .fixtures import CONTENTS, COURSES, UNKNOWN_COURSE
 
 TOKEN_PATH = "/login/token.php"
 REST_PATH = "/webservice/rest/server.php"
+SITE_INFO_FUNCTION = "core_webservice_get_site_info"
+COURSES_FUNCTION = "core_enrol_get_users_courses"
+CONTENTS_FUNCTION = "core_course_get_contents"
 SITE_NAME = "Lernplattform TH-MA"
 
 MAINTENANCE_HTML = """<!DOCTYPE html><html lang="de"><head><title>Wartung | moodle</title></head>
@@ -34,6 +44,20 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html><html lang="de"><head><title>Anmeldeseite | 
 <input type="hidden" name="logintoken" value="REDACTED">
 <input type="text" name="username" id="username"><input type="password" name="password">
 <button type="submit">Anmelden</button></form></body></html>"""
+
+# Modi pro REST-Funktion: normal | server_error | html | invalid_token
+# | access_denied | broken (Pflichtfelder fehlen) | object (Objekt statt Liste)
+
+
+def expand(value: Any, base_url: str) -> Any:
+    """`{base}` in den Fixtures durch die Basis-URL des Fake-Servers ersetzen."""
+    if isinstance(value, str):
+        return value.replace("{base}", base_url)
+    if isinstance(value, list):
+        return [expand(item, base_url) for item in value]
+    if isinstance(value, dict):
+        return {key: expand(item, base_url) for key, item in value.items()}
+    return value
 
 
 @dataclass
@@ -48,6 +72,14 @@ class RecordedRequest:
         values = self.form.get(key)
         return values[0] if values else None
 
+    def query_value(self, key: str) -> str | None:
+        values = self.query.get(key)
+        return values[0] if values else None
+
+    @property
+    def wsfunction(self) -> str | None:
+        return self.form_value("wsfunction")
+
 
 @dataclass
 class FakeMoodle:
@@ -58,8 +90,14 @@ class FakeMoodle:
     userid: int = 4711
     # token_mode: normal | server_error | html | empty | access_denied | echo_password
     token_mode: str = "normal"
-    # rest_mode: normal | invalid_token | server_error | html | echo_token
+    # rest_mode: global für alle REST-Funktionen
+    # normal | invalid_token | server_error | html | echo_token
     rest_mode: str = "normal"
+    # courses_mode / contents_mode: siehe _ERROR_MODES oben
+    courses_mode: str = "normal"
+    contents_mode: str = "normal"
+    courses: list[dict] = field(default_factory=lambda: [dict(c) for c in COURSES])
+    contents: dict[int, list[dict]] = field(default_factory=lambda: {k: [dict(s) for s in v] for k, v in CONTENTS.items()})
     tokens: dict[str, str] = field(default_factory=dict)  # token -> username
     requests: list[RecordedRequest] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -99,6 +137,9 @@ class FakeMoodle:
 
     def requests_to(self, path: str) -> list[RecordedRequest]:
         return [r for r in self.requests if r.path == path]
+
+    def calls_to(self, function: str) -> list[RecordedRequest]:
+        return [r for r in self.requests_to(REST_PATH) if r.wsfunction == function]
 
     def last_token_php(self) -> RecordedRequest | None:
         found = self.requests_to(TOKEN_PATH)
@@ -207,7 +248,11 @@ def _make_handler(world: FakeMoodle):
             token = rec.form_value("wstoken") or ""
             function = rec.form_value("wsfunction") or ""
             fmt = rec.form_value("moodlewsrestformat") or ""
-            if function != "core_webservice_get_site_info" or fmt != "json":
+            if function not in {
+                SITE_INFO_FUNCTION,
+                COURSES_FUNCTION,
+                CONTENTS_FUNCTION,
+            } or fmt != "json":
                 return self._send_json(
                     200,
                     {
@@ -237,6 +282,46 @@ def _make_handler(world: FakeMoodle):
                         "debuginfo": "Token was not found in the database",
                     },
                 )
+            if function == SITE_INFO_FUNCTION:
+                return self._site_info(username)
+            if function == COURSES_FUNCTION:
+                return self._courses(rec)
+            return self._contents(rec)
+
+        def _mode_switch(self, mode: str) -> bool:
+            """Fehlerantworten der Modi; True = Antwort gesendet."""
+            if mode == "server_error":
+                self._send_html(503, "<h1>503 Service Unavailable</h1>", "text/html; charset=UTF-8")
+            elif mode == "html":
+                self._send_html(200, LOGIN_PAGE_HTML, "text/html; charset=UTF-8")
+            elif mode == "invalid_token":
+                self._send_json(
+                    401,
+                    {
+                        "exception": "moodle_exception",
+                        "errorcode": "invalidtoken",
+                        "message": "Invalid token - token not found",
+                    },
+                )
+            elif mode == "access_denied":
+                self._send_json(
+                    403,
+                    {
+                        "exception": "webservice_access_exception",
+                        "errorcode": "accessexception",
+                        "message": "Access to the specified function is not allowed",
+                    },
+                )
+            elif mode == "broken":
+                # Antwort ohne die erwarteten Pflichtfelder
+                self._send_json(200, [{"shortname": "OHNE-ID", "fullname": "Kurs ohne ID"}])
+            elif mode == "object":
+                self._send_json(200, {"unexpected": "object"})
+            else:
+                return False
+            return True
+
+        def _site_info(self, username: str) -> None:
             return self._send_json(
                 200,
                 {
@@ -251,5 +336,34 @@ def _make_handler(world: FakeMoodle):
                     "siteid": 1,
                 },
             )
+
+        def _courses(self, rec: RecordedRequest) -> None:
+            """core_enrol_get_users_courses: erwartet die userid im POST-Body."""
+            if self._mode_switch(world.courses_mode):
+                return
+            if rec.form_value("userid") != str(world.userid):
+                return self._send_json(
+                    200,
+                    {
+                        "exception": "moodle_exception",
+                        "errorcode": "invalidparameter",
+                        "message": "Invalid parameter value detected for userid",
+                    },
+                )
+            with world.lock:
+                payload = [expand(dict(course), world.base_url) for course in world.courses]
+            return self._send_json(200, payload)
+
+        def _contents(self, rec: RecordedRequest) -> None:
+            """core_course_get_contents: erwartet die courseid im POST-Body."""
+            if self._mode_switch(world.contents_mode):
+                return
+            courseid = rec.form_value("courseid") or ""
+            with world.lock:
+                sections = world.contents.get(int(courseid)) if courseid.isdigit() else None
+                payload = [expand(dict(section), world.base_url) for section in sections] if sections else None
+            if payload is None:
+                return self._send_json(200, UNKNOWN_COURSE)
+            return self._send_json(200, payload)
 
     return Handler
