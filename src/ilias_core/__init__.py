@@ -29,6 +29,7 @@ from .errors import (
     NotLoggedInError,
     NotSupportedError,
     ParserError,
+    PermissionDeniedError,
     SessionExpiredError,
 )
 from .models import (
@@ -85,6 +86,7 @@ __all__ = [
     "NotLoggedInError",
     "NotSupportedError",
     "ParserError",
+    "PermissionDeniedError",
     "Secret",
     "Section",
     "Service",

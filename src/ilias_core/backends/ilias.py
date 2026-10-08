@@ -2,8 +2,9 @@
 
 Login (OIDC/Keycloak + TOTP für HHN, SAML/Shibboleth für Uni Mannheim), Verifikation
 gegen das Dashboard, Session-Cookies im Keyring bzw. in einer 0600-Datei – alles aus
-dem bestehenden ILIAS-Kern. Kurse (F2) und Kursinhalt (F3) sind für ILIAS noch nicht
-implementiert und liefern einen sauberen ``NotSupportedError``.
+dem bestehenden ILIAS-Kern. ``courses`` liest "Meine Kurse und Gruppen" per HTML
+(S6); ``course_contents`` (``ls``) folgt in einem späteren Schritt und liefert
+weiterhin einen sauberen ``NotSupportedError``.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from collections.abc import Callable
 
 from ..client import IliasClient
 from ..errors import NotSupportedError
+from ..ilias_html.fetch import IliasReadClient
+from ..ilias_html.membership import parse_memberships
 from ..models import (
     Course,
     Credentials,
@@ -21,6 +24,8 @@ from ..models import (
     SessionStatus,
 )
 from .base import Backend
+
+MEMBERSHIP_PATH = "/ilias.php?baseClass=ilmembershipoverviewgui"
 
 
 class IliasBackend(Backend):
@@ -50,13 +55,16 @@ class IliasBackend(Backend):
         removed = self.client.logout()
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
 
-    supports_courses = False
+    supports_courses = True
 
     def courses(self) -> list[Course]:
-        raise NotSupportedError(
-            "Kursliste für ILIAS noch nicht implementiert.",
-            hint="Für Moodle: `ilias courses --instance hs-mannheim`.",
-        )
+        """Kurse und Gruppen aus "Meine Kurse und Gruppen" (HTML, Spec §5)."""
+
+        read = IliasReadClient(self.instance, store=self.client.store)
+        response = read.get(MEMBERSHIP_PATH, label="Meine Kurse und Gruppen")
+        courses = parse_memberships(response.text, self.base_url)
+        courses.sort(key=lambda course: course.sort_key())
+        return courses
 
     def course_contents(self, course_id: int) -> list[Section]:
         raise NotSupportedError(

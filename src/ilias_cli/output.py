@@ -130,8 +130,27 @@ def _courses_table(result: CoursesResult) -> Table:
     return table
 
 
+def _ilias_courses_table(result: CoursesResult) -> Table:
+    table = Table(
+        title=f"Kurse und Gruppen ({result.instance}, {result.lms})", header_style="bold"
+    )
+    table.add_column("ID (ref_id)", justify="right", no_wrap=True)
+    table.add_column("Typ", no_wrap=True)
+    table.add_column("Titel")
+    table.add_column("Semester", no_wrap=True)
+    for course in result.courses:
+        table.add_row(
+            str(course.id),
+            escape(course.type or ""),
+            escape(course.fullname),
+            escape(course.semester or "—"),
+        )
+    return table
+
+
 def print_courses(result: CoursesResult) -> None:
-    out_console.print(_courses_table(result))
+    table = _ilias_courses_table(result) if result.lms == "ilias" else _courses_table(result)
+    out_console.print(table)
     out_console.print(f"[dim]{len(result.courses)} Kurs(e) · {result.timestamp}[/dim]")
 
 

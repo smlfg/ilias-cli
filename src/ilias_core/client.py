@@ -96,17 +96,20 @@ class IliasClient:
         cookies = self.store.load()
         if not cookies:
             raise NotLoggedInError(
-                "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen."
+                "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen.",
+                hint=f"Erst `ilias login --instance {self.config.instance}` ausführen.",
             )
 
         state = self._dashboard_state(cookies)
         if state is DashboardState.UNKNOWN:
             raise ParserError(
-                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Session-Status unklar."
+                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Session-Status unklar.",
+                hint=f"Mit `ilias login --instance {self.config.instance}` neu anmelden.",
             )
         if state is not DashboardState.OK:
             raise SessionExpiredError(
-                "Session abgelaufen. Bitte erneut `ilias login` ausführen."
+                "Session abgelaufen. Bitte erneut `ilias login` ausführen.",
+                hint=f"Erneut `ilias login --instance {self.config.instance}` ausführen.",
             )
 
         return SessionStatus(

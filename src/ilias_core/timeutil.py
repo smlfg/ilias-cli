@@ -36,6 +36,19 @@ def timestamp_to_iso(value: object) -> str | None:
     return to_iso(datetime.fromtimestamp(value, tz=_BERLIN))
 
 
+def semester_from_month(year: int, month: int) -> str:
+    """Semesterkennung aus Jahr und Monat (Regel L9).
+
+    Mrz-Aug -> ``SoSe YYYY`` · Sep-Dez -> ``WiSe YYYY/YY+1`` ·
+    Jan-Feb -> ``WiSe YYYY-1/YY``.
+    """
+    if 3 <= month <= 8:
+        return f"SoSe {year}"
+    if month >= 9:
+        return f"WiSe {year}/{str(year + 1)[-2:]}"
+    return f"WiSe {year - 1}/{str(year)[-2:]}"
+
+
 def semester_from_timestamp(value: object) -> str | None:
     """Semesterkennung aus dem Kurs-Startdatum in Europe/Berlin ableiten.
 
@@ -50,13 +63,7 @@ def semester_from_timestamp(value: object) -> str | None:
     if value <= 0:
         return None
     moment = datetime.fromtimestamp(value, tz=_BERLIN)
-    year = moment.year
-    month = moment.month
-    if 3 <= month <= 8:
-        return f"SoSe {year}"
-    if month >= 9:
-        return f"WiSe {year}/{str(year + 1)[-2:]}"
-    return f"WiSe {year - 1}/{str(year)[-2:]}"
+    return semester_from_month(moment.year, moment.month)
 
 
 def semester_order(semester: str | None) -> int:
