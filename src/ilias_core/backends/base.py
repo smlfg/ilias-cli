@@ -52,5 +52,9 @@ class Backend(abc.ABC):
         """Kurse des angemeldeten Nutzers (F2)."""
 
     @abc.abstractmethod
-    def course_contents(self, course_id: int) -> list[Section]:
-        """Inhalt eines Kurses als Abschnitts-/Modul-Baum (F3)."""
+    def course_contents(self, course_id: int, depth: int | None = None) -> list[Section]:
+        """Inhalt eines Kurses als Abschnitts-/Modul-Baum (F3).
+
+        ``depth`` erlaubt es dem Backend, nicht benötigte Ordnerseiten gar nicht
+        erst zu laden (ILIAS, Spec §6.1). Moodle ignoriert den Parameter.
+        """

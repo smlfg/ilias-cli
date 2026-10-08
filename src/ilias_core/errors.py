@@ -113,3 +113,20 @@ class CourseAmbiguousError(IliasError):
 
     exit_code = EXIT_AUTH
     code = "course_ambiguous"
+
+
+class PermissionDeniedError(IliasError):
+    """Keine Berechtigung auf ein Objekt (ILIAS: ``.alert-danger``). Exit 1.
+
+    Die Seite wird **nicht** geparst und nichts gecrawlt (Spec §13.7).
+    """
+
+    exit_code = EXIT_AUTH
+    code = "permission_denied"
+
+
+class CrawlLimitError(IliasError):
+    """Harte Request-Obergrenze beim Crawl erreicht. Exit 5, keine Teilausgabe."""
+
+    exit_code = EXIT_PARSE
+    code = "crawl_limit"

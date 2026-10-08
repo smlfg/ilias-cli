@@ -7,6 +7,7 @@ Baums nach `--depth` gehören hierher, nicht in die CLI (ANFORDERUNGEN.md §1).
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
@@ -62,8 +63,8 @@ class Service:
         if not self.backend.supports_courses:
             # sofort die passende "nicht unterstützt"-Meldung für ls (nicht die von courses)
             self.backend.course_contents(0)
-        course = resolve_course(self.backend.courses(), query)
-        sections = trim_sections(self.backend.course_contents(course.id), depth)
+        course = resolve_course(self.backend.courses(), query, instance=self.instance.key)
+        sections = trim_sections(self.backend.course_contents(course.id, depth), depth)
         return CourseContentsResult(
             instance=self.instance.key,
             lms=self.instance.lms,
@@ -73,46 +74,73 @@ class Service:
         )
 
 
-def resolve_course(courses: list[Course], query: str) -> Course:
+def _courses_hint(instance: str | None) -> str:
+    if instance:
+        return f"`ilias courses --instance {instance}` zeigt die verfügbaren Kurse (id, Kurzname, Name)."
+    return "`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name)."
+
+
+def resolve_course(courses: list[Course], query: str, *, instance: str | None = None) -> Course:
     """Kurs per ID oder (case-insensitivem) Teilstring von fullname/shortname finden.
 
-    Ein exakter Kurzname/Name schlägt einen bloßen Teilstring. Kein Treffer ->
+    Eine Zahl, die keine ref_id einer Mitgliedschaft ist, wird als **Kursnummer**
+    gesucht: erst im Titel, dann in der Beschreibung (ILIAS, Spec §13.1). Ein
+    exakter Kurzname/Name schlägt einen bloßen Teilstring. Kein Treffer ->
     `CourseNotFoundError`, mehrere -> `CourseAmbiguousError` (Exit 1).
     """
-    text = (query or "").strip()
+    text = unicodedata.normalize("NFC", (query or "").strip())
     if not text:
-        raise CourseNotFoundError(
-            "Kein Kurs angegeben.",
-            hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
-        )
+        raise CourseNotFoundError("Kein Kurs angegeben.", hint=_courses_hint(instance))
     if text.isdigit():
         target = int(text)
         for course in courses:
             if course.id == target:
                 return course
+        matches = _course_number_matches(courses, text)
+        if len(matches) == 1:
+            return matches[0]
+        if matches:
+            return _ambiguous(text, matches, kind="Kursnummern", instance=instance)
     needle = text.lower()
     matches = [
         course
         for course in courses
-        if needle in course.fullname.lower() or needle in course.shortname.lower()
+        if needle in unicodedata.normalize("NFC", course.fullname).lower()
+        or needle in unicodedata.normalize("NFC", course.shortname).lower()
     ]
     if not matches:
-        raise CourseNotFoundError(
-            f"Kein Kurs passt auf {text!r}.",
-            hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
-        )
+        raise CourseNotFoundError(f"Kein Kurs passt auf {text!r}.", hint=_courses_hint(instance))
     exact = [
         course
         for course in matches
-        if course.shortname.lower() == needle or course.fullname.lower() == needle
+        if unicodedata.normalize("NFC", course.shortname).lower() == needle
+        or unicodedata.normalize("NFC", course.fullname).lower() == needle
     ]
     pool = exact or matches
     if len(pool) == 1:
         return pool[0]
+    return _ambiguous(text, pool, instance=instance)
+
+
+def _course_number_matches(courses: list[Course], number: str) -> list[Course]:
+    """Kursnummer-Suche: erst im Titel, dann in der Beschreibung (Spec §13.1)."""
+
+    title_matches = [course for course in courses if number in unicodedata.normalize("NFC", course.fullname)]
+    if title_matches:
+        return title_matches
+    return [course for course in courses if number in unicodedata.normalize("NFC", course.description)]
+
+
+def _ambiguous(
+    text: str, pool: list[Course], *, kind: str = "Kurse", instance: str | None = None
+) -> Course:
     listing = ", ".join(f"{c.id} ({c.shortname}: {c.fullname})" for c in pool)
+    hint = "Eindeutige Kurs-ID oder einen exakten Kurznamen angeben."
+    if instance:
+        hint = f"Eindeutige Kurs-ID angeben (s. `ilias courses --instance {instance}`)."
     raise CourseAmbiguousError(
-        f"Mehrere Kurse passen auf {text!r}: {listing}.",
-        hint="Eindeutige Kurs-ID oder einen exakten Kurznamen angeben.",
+        f"Mehrere {kind} passen auf {text!r}: {listing}.",
+        hint=hint,
         candidates=[course.to_ref_dict() for course in pool],
     )
 
@@ -130,10 +158,13 @@ def trim_sections(sections: list[Section], depth: int | None) -> list[Section]:
             continue
         modules: list[Module] = []
         for module in section.modules:
-            children = module.children if depth >= 3 else []
-            modules.append(
-                replace(module, children=_trim_children(children, 3, depth))
-            )
+            if depth < 3:
+                # None = "nicht aufgeklappt" (Sitzung, Kurslink) bleibt None (Spec §6.2).
+                modules.append(module if module.children is None else replace(module, children=[]))
+            elif module.children is None:
+                modules.append(module)
+            else:
+                modules.append(replace(module, children=_trim_children(module.children, 3, depth)))
         result.append(replace(section, modules=modules))
     return result
 
