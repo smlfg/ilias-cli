@@ -22,6 +22,10 @@ from . import parsers
 from .base import BaseLoginFlow, OtpCallback
 from .verify import same_origin, verify_login
 
+#: Maximale TOTP-Versuche im selben Keycloak-Ablauf (Spec §3.5). Das Passwort
+#: wird dabei nie erneut gesendet (Konto-Sperre vermeiden).
+MAX_TOTP_ATTEMPTS = 3
+
 
 class KeycloakLoginFlow(BaseLoginFlow):
     """Führt den OIDC-Login (Keycloak, optional TOTP) aus."""
@@ -87,17 +91,31 @@ class KeycloakLoginFlow(BaseLoginFlow):
         self._log_form("Keycloak-TOTP", totp_form)
         if otp_callback is None:
             raise AuthenticationError("TOTP-Code erforderlich.")
-        otp = otp_callback() or ""
-        if not otp.strip():
-            raise AuthenticationError("Kein TOTP-Code eingegeben.")
 
-        data = dict(totp_form.fields)
-        data["otp"] = otp
-        response = self._post(totp_form.action, data)
+        message = "TOTP-Code ist ungültig."
+        for attempt in range(MAX_TOTP_ATTEMPTS):
+            otp = otp_callback() or ""
+            if not otp.strip():
+                raise AuthenticationError("Kein TOTP-Code eingegeben.")
+            data = dict(totp_form.fields)
+            data["otp"] = otp
+            response = self._post(totp_form.action, data)
 
-        if parsers.is_keycloak_totp(response.text) or parsers.is_keycloak_login(
-            response.text
-        ):
-            message = parsers.extract_keycloak_error(response.text)
-            raise AuthenticationError(message or "TOTP-Code ist ungültig.")
-        return response
+            if parsers.is_keycloak_totp(response.text):
+                # Falscher Code: neues Formular aus der Fehlerseite lesen, im SELBEN
+                # Keycloak-Ablauf erneut fragen, das Passwort nicht neu senden.
+                message = parsers.extract_keycloak_error(response.text) or message
+                if attempt == MAX_TOTP_ATTEMPTS - 1:
+                    raise AuthenticationError(message)
+                new_form = parsers.parse_keycloak_totp(response.text, str(response.url))
+                if new_form is None:
+                    raise AuthenticationError(message)
+                totp_form = new_form
+                self._log_form("Keycloak-TOTP erneut", totp_form)
+                continue
+            if parsers.is_keycloak_login(response.text):
+                error = parsers.extract_keycloak_error(response.text)
+                raise AuthenticationError(error or "Anmeldung fehlgeschlagen.")
+            return response
+
+        raise AuthenticationError(message)  # pragma: no cover - Schleife endet oben

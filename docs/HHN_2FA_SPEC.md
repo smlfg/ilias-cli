@@ -25,7 +25,7 @@ Aus `smlfg/agent-learnings` `rules/AGENTS.md` und den Runden F1–F3:
 |---|---|---|
 | L1 | Login gilt erst als erfolgreich, wenn eine **nur-eingeloggt-Seite** geladen wurde (Dashboard mit `logout.php`-Link). | `tests/acceptance/test_login_verification.py`, `test_setup.py` |
 | L2 | Gespeichert werden **nur ILIAS-Cookies** (Allowlist: `PHPSESSID`, `ilClientId`). Nie Keycloak-Cookies (`KEYCLOAK_IDENTITY`, `KEYCLOAK_SESSION`, `AUTH_SESSION_ID`, `KC_RESTART`, `KC_AUTH_SESSION_HASH`). | `tests/acceptance` |
-| L3 | **HTTP-Status vor dem Parsen prüfen** (≥ 500 → 4, Login-Redirect → 3, dann erst HTML lesen). | `test_courses_server_503_exit4`, `test_ls_folder_500_exit4` |
+| L3 | **HTTP-Status vor dem Parsen prüfen** (≥ 500 → 4, Login-Redirect → 3, dann erst HTML lesen). | `test_courses_server_503_exit4`, `test_ls_folder_500_exit4`, `test_redirect_guard.py` (§7 Redirect-Schutz) |
 | L4 | **Ein Exit-Code pro Fehlerklasse** (§8). Keine Sammel-Exit-1 für Netz/Parser. | alle `err_json`-Tests |
 | L5 | Tests erreichen **nie echte Server** (Netzwerk-Sandbox `tests/acceptance/support/sitecustomize.py`). | Fixture `hh` |
 | L6 | **Keine erfundenen Personendaten**, keine echten Kursinhalte in Fixtures, keine Matrikelnummern. PII-Guard (`scripts/pii_guard.py`, PR #19) muss grün sein. | CI |
@@ -175,6 +175,7 @@ rich `Tree` mit Typ-Symbolen (📁 Ordner, 📄 Datei mit Größe in KB/MB, 🔗
 ## 7. Robustheit beim Scraping (N4)
 - Ein Parser-Modul pro Seitentyp: `ilias_core/ilias_html/membership.py`, `container.py`, `props.py` (Größe/Datum/Semester als reine Funktionen mit eigenen Unit-Tests).
 - Reihenfolge pro Antwort (§13.7): Verbindung (→ 4) → Status ≥ 500 (→ 4) → Redirect-Kette endet auf `login.php`/`cmd=force_login`/`reloadpublic=1`, Login-Formular oder Metabar mit `login.php`-Link statt Abmelden (→ 3) → `.alert-danger` im Hauptinhalt (→ 1, `permission_denied`, Seite **nicht** parsen, nichts crawlen) → erwartete Struktur da? sonst → 5 (`parse_error`, Meldung nennt Seitentyp und URL ohne Query-Werte).
+- Redirect-Schutz beim Lesen: Weiterleitungen **nie blind folgen**, sondern jeden Hop vor dem Abruf prüfen. Ziel mit `login.php`/`cmd=force_login`/`reloadpublic=1`, `openidconnect`, Keycloak (`/realms/`, `openid-connect`), `Shibboleth.sso`/`saml.php` oder einem anderen Host/Port als ILIAS → sofort Exit 3 `session_expired`, ohne diesen Hop abzurufen (0 Requests an Keycloak/fremde Hosts). `Set-Cookie` aus solchen Antworten wird nicht gespeichert, die gespeicherte Session bleibt unverändert. Mehr als 10 Weiterleitungen in Folge → Exit 4 `network_error` (kein Hängen). Lesen nur per `GET`, nie `POST`. Tests: `tests/hhn/test_redirect_guard.py` (CLI-Ebene, `courses` und `ls`).
 - Crawl-Schutz (§13.8): Rekursion nur in `fold`/`grp`-Einträge der gerade geladenen Containerliste, visited-Set über ref_id, harte Obergrenze `ILIAS_CLI_MAX_REQUESTS` (Default 300) pro Befehl → Exit 5 `crawl_limit`, keine Teilausgabe.
 - Kein Traceback auf stderr, auch bei 5. `--debug` loggt wie bisher nur URLs (Query geschwärzt), Status, gefundene Selektoren und Anzahl Treffer.
 - Selektoren zentral als Konstanten, je mit Fallback (z. B. `h3.il_ContainerItemTitle a` → `.il_ContainerItemTitle a` → `a.il_ContainerItemTitle`). Ein ILIAS-Update darf nur eine Stelle betreffen.
@@ -223,6 +224,7 @@ Danach Live-Test durch IliasCLI/MCP mit `loop/test_hhn.sh` (der Inhaber tippt ei
 | `setup` (S1–S5) | `test_setup.py` | 21 | `HHN_STRICT=1 uv run pytest tests/hhn/test_setup.py -q` |
 | `courses` (S6) | `test_courses.py`, `test_courses_live_structure.py` | 12 + 3 | `HHN_STRICT=1 uv run pytest tests/hhn/test_courses*.py -q` |
 | `ls` (S7/S8) | `test_ls.py`, `test_ls_live_structure.py` | 22 + 36 | `HHN_STRICT=1 uv run pytest tests/hhn/test_ls*.py -q` |
+| Redirect-Schutz (S5, `courses` + `ls`) | `test_redirect_guard.py` | 20 | `HHN_STRICT=1 uv run pytest tests/hhn/test_redirect_guard.py -q` |
 
   S5-Tests (`test_courses_not_logged_in_exit2` usw.) liegen in `test_courses.py`, weil sie über `courses` laufen.
 - Ohne `HHN_STRICT=1` sind alle als `xfail` markiert (CI auf `main` bleibt grün). Stand (Branch `spec/hhn-live-fixtures`): **92 xfailed, 2 xpassed** (nur die Hilfetexte von `courses`/`ls` gibt es schon), mit `HHN_STRICT=1` **92 failed, 2 passed**. Die Fehlschläge sind die erwarteten: `courses`/`ls` für `hhn` antworten mit `not_supported` (Exit 1), `setup` fehlt. ruff sauber, `tests/acceptance` unverändert grün.

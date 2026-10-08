@@ -50,6 +50,34 @@ class SessionStatus:
         return asdict(self)
 
 
+# --------------------------------------------------------------- setup (Spec §3.4)
+
+@dataclass(frozen=True)
+class SetupResult:
+    """Ergebnis eines erfolgreichen `ilias setup` (nie mit Passwort/Code)."""
+
+    instance: str
+    lms: str
+    username: str
+    verified: bool = True
+    session_stored: bool = True
+    config_path: str = ""
+    timestamp: str = field(default_factory=now_iso)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "command": "setup",
+            "instance": self.instance,
+            "lms": self.lms,
+            "username": self.username,
+            "verified": self.verified,
+            "session_stored": self.session_stored,
+            "config_path": self.config_path,
+            "timestamp": self.timestamp,
+        }
+
+
 # --------------------------------------------------------------- Moodle + F2/F3
 
 @dataclass(frozen=True)

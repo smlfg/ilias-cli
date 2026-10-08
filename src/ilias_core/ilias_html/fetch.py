@@ -1,8 +1,8 @@
 """Kleiner, rein lesender GET-Helfer für die ILIAS-HTML-Seiten.
 
-Kein Bezug zur (parallel entstehenden) HTTP-Basis aus S5: lädt die gespeicherte
-Session (Cookies) aus dem vorhandenen ``SessionStore``, sendet nur GET mit dem
-eigenen User-Agent, hält die Request-Pause ein und prüft **vor jedem Parsen** in
+Die **einzige** HTTP-Schicht für die lesenden ILIAS-Befehle (`courses`, `ls`): lädt die
+gespeicherte Session (Cookies) aus dem vorhandenen ``SessionStore``, sendet nur GET mit
+dem eigenen User-Agent, hält die Request-Pause ein und prüft **vor jedem Parsen** in
 dieser Reihenfolge (Spec §7/§13.7):
 
 1. Verbindungsfehler -> Exit 4,
@@ -14,6 +14,12 @@ dieser Reihenfolge (Spec §7/§13.7):
 4. ``.alert-danger`` im Hauptinhalt bzw. Umleitung auf eine andere ref_id ->
    Exit 1 ``permission_denied``,
 5. sonst URL/HTML an den Parser.
+
+Rotiert ILIAS ``PHPSESSID``/``ilClientId`` (``Set-Cookie`` auf dem ILIAS-Host), wird der
+neue Wert gespeichert (Spec §4.4, L2): nur Allowlist-Cookies, nie Keycloak-/Fremd-Cookies,
+und nur nach einer Antwort, die keine abgelaufene Session meldet. Es gibt keinen
+zusätzlichen Vorab-Request zur Session-Prüfung; die erste Seite eines Befehls ist die
+Prüfung.
 
 Zusätzlich: harte Obergrenze ``ILIAS_CLI_MAX_REQUESTS`` (Default 300) -> Exit 5
 ``crawl_limit`` ohne Teilausgabe. Offline-Objekte sind nur ``visible: false``,
@@ -31,6 +37,7 @@ from bs4 import BeautifulSoup
 
 from .. import debuglog
 from ..auth.parsers import is_ilias_login_page
+from ..auth.verify import ilias_cookies
 from ..config import Config
 from ..errors import (
     CrawlLimitError,
@@ -58,6 +65,8 @@ _AUTH_FLOW_MARKERS = (
     "saml.php",
 )
 _DEFAULT_PORTS = {"http": 80, "https": 443}
+#: L2: nur diese ILIAS-Cookies werden bei einer Rotation neu gespeichert.
+COOKIE_ALLOWLIST = frozenset({"PHPSESSID", "ilClientId"})
 
 
 def _origin(url: str) -> tuple[str, str, int | None]:
@@ -177,7 +186,13 @@ class Fetcher:
                     raise self._session_expired(label)
                 current = target
                 continue
-            return self._classify(response, label, expect_ref)
+            try:
+                page = self._classify(response, label, expect_ref)
+            except PermissionDeniedError:
+                self._store_rotated()  # Session ist gültig, nur das Objekt nicht lesbar
+                raise
+            self._store_rotated()
+            return page
         raise NetworkError(
             f"{label}: zu viele Weiterleitungen ({safe_url(url)}).",
             hint=f"ILIAS-Adresse prüfen oder `ilias status --instance {self.key}`.",
@@ -226,6 +241,25 @@ class Fetcher:
                 hint=f"Mitgliedschaft mit `ilias courses --instance {self.key}` prüfen.",
             )
         return IliasPage(html=html, url=str(response.url), status=response.status_code)
+
+    def _store_rotated(self) -> None:
+        """Neue Allowlist-Cookie-Werte (Rotation) übernehmen und speichern.
+
+        Andere gespeicherte Cookies bleiben unverändert; Keycloak-/Fremd-Cookies werden
+        nie übernommen (``ilias_cookies`` filtert auf den ILIAS-Host). Nur bei einer
+        echten Änderung wird geschrieben.
+        """
+
+        current = ilias_cookies(self._client, self.base_url)
+        rotated = {
+            name: value
+            for name, value in current.items()
+            if name in COOKIE_ALLOWLIST and value and self._cookies.get(name) != value
+        }
+        if not rotated:
+            return
+        self._cookies = {**self._cookies, **rotated}
+        self.store.save(self._cookies)
 
     def _session_expired(self, label: str) -> SessionExpiredError:
         return SessionExpiredError(
