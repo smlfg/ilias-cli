@@ -15,7 +15,7 @@ import typer
 
 from ilias_core import debuglog
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
-from ilias_core.errors import IliasError
+from ilias_core.errors import ConfigError, IliasError
 from ilias_core.models import (
     CourseContentsResult,
     CoursesResult,
@@ -29,6 +29,7 @@ from ilias_core.models import (
 )
 from ilias_core.secrets import Secret
 from ilias_core.service import Service, open_service
+from ilias_core.setup import filter_instances, list_instances_json
 
 from . import output, prompts
 
@@ -218,6 +219,46 @@ def logout(
         )
     else:
         output.print_logout(result.token_removed)
+
+
+@app.command()
+def setup(
+    json_output: bool = JSON_OPTION,
+    instance: str | None = typer.Option(
+        None,
+        "--instance",
+        "-i",
+        help="Instanz-Profil (eingebaut: hhn, uni-mannheim, hs-mannheim).",
+    ),
+    username: str | None = typer.Option(
+        None, "--username", help="Benutzername (sonst interaktive Abfrage oder Default aus Config)."
+    ),
+    list_instances: bool = typer.Option(
+        False, "--list", help="Alle eingebauten Instanzen anzeigen."
+    ),
+    filter_text: str | None = typer.Option(
+        None, "--filter", help="Filter für die Instanz-Liste (Teilstring in Key, Name, Stadt, LMS)."
+    ),
+    debug: bool = DEBUG_OPTION,
+) -> None:
+    """Geführte Erst-Einrichtung: Instanz wählen, Benutzername, Passwort, optional TOTP."""
+
+    if list_instances:
+        data = list_instances_json(filter_text)
+        if json_output:
+            output.print_json(data)
+        else:
+            for inst in data["instances"]:
+                totp = " (2FA)" if inst["requires_totp"] else ""
+                print(f"  {inst['key']}: {inst['name']} ({inst['city']}, {inst['lms']}){totp}")
+        return
+
+    # Non-list path: will be implemented in S2
+    if json_output:
+        output.print_json({"ok": False, "command": "setup", "error": {"code": "not_implemented", "message": "setup without --list not yet implemented"}})
+    else:
+        output.print_error("setup without --list not yet implemented")
+    raise typer.Exit(code=1)
 
 
 @app.command()
