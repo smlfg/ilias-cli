@@ -101,6 +101,13 @@ class NotSupportedError(IliasError):
     code = "not_supported"
 
 
+class PermissionDeniedError(IliasError):
+    """Keine Berechtigung für das Objekt bzw. die Seite (ILIAS: ``.alert-danger``)."""
+
+    exit_code = EXIT_AUTH
+    code = "permission_denied"
+
+
 class CourseNotFoundError(IliasError):
     """Kein Kurs passt auf die Angabe bei `ilias ls`."""
 

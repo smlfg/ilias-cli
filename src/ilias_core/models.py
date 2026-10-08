@@ -210,7 +210,13 @@ class ErrorResult:
 # --------------------------------------------------------------- F2/F3: Kurse
 @dataclass(frozen=True)
 class Course:
-    """Ein Kurs aus core_enrol_get_users_courses (Moodle-REST)."""
+    """Ein Kurs oder eine Gruppe (Moodle-REST bzw. ILIAS-Mitgliedschaftsseite).
+
+    ``type`` bleibt bei Moodle leer und wird nur für ILIAS (``crs``/``grp``)
+    gesetzt; ``to_json_dict`` nimmt es dann in die ``--json``-Ausgabe auf.
+    ``description`` steht nur dem Kern (Kursnummernsuche in ``ls``) zur
+    Verfügung und erscheint nie im JSON (Spec §13.1).
+    """
 
     id: int
     fullname: str
@@ -221,9 +227,11 @@ class Course:
     startdate: str | None = None
     enddate: str | None = None
     url: str = ""
+    type: str = ""
+    description: str | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "id": self.id,
             "fullname": self.fullname,
             "shortname": self.shortname,
@@ -234,6 +242,9 @@ class Course:
             "enddate": self.enddate,
             "url": self.url,
         }
+        if self.type:
+            data["type"] = self.type
+        return data
 
     def to_ref_dict(self) -> dict[str, Any]:
         return {"id": self.id, "fullname": self.fullname, "shortname": self.shortname}
