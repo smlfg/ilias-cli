@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import sys
-from dataclasses import asdict
 from typing import Any
 
 from .client import IliasClient
 from .config import BUILTIN_INSTANCES, Config, InstanceProfile, load_config, save_config
 from .errors import AuthenticationError, ConfigError
-from .models import Credentials, LoginResult
-from .secrets import Secret
+from .models import LoginResult
 
 
 def filter_instances(text: str) -> list[InstanceProfile]:
@@ -165,7 +163,7 @@ def run_setup(
 
     try:
         result = client.login(username, password, otp_callback if requires_totp else None)
-    except AuthenticationError as e:
+    except AuthenticationError:
         # Re-raise with proper message
         raise
 

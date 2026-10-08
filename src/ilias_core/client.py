@@ -70,11 +70,13 @@ class IliasClient:
         state = self._dashboard_state(cookies)
         if state is DashboardState.UNKNOWN:
             raise ParserError(
-                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Nichts gespeichert."
+                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Nichts gespeichert.",
+                hint=f"ilias login --instance {self.config.instance}",
             )
         if state is not DashboardState.OK:
             raise AuthenticationError(
-                "Die Browser-Session wird von ILIAS nicht akzeptiert. Nichts gespeichert."
+                "Die Browser-Session wird von ILIAS nicht akzeptiert. Nichts gespeichert.",
+                hint=f"ilias login --instance {self.config.instance}",
             )
         self.store.save(cookies)
         return self._login_result(
@@ -96,17 +98,20 @@ class IliasClient:
         cookies = self.store.load()
         if not cookies:
             raise NotLoggedInError(
-                "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen."
+                "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen.",
+                hint=f"ilias login --instance {self.config.instance}",
             )
 
         state = self._dashboard_state(cookies)
         if state is DashboardState.UNKNOWN:
             raise ParserError(
-                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Session-Status unklar."
+                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Session-Status unklar.",
+                hint=f"ilias login --instance {self.config.instance}",
             )
         if state is not DashboardState.OK:
             raise SessionExpiredError(
-                "Session abgelaufen. Bitte erneut `ilias login` ausführen."
+                "Session abgelaufen. Bitte erneut `ilias login` ausführen.",
+                hint=f"ilias login --instance {self.config.instance} oder ilias setup --instance {self.config.instance}",
             )
 
         return SessionStatus(

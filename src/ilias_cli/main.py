@@ -16,7 +16,7 @@ import typer
 
 from ilias_core import debuglog
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
-from ilias_core.errors import ConfigError, IliasError
+from ilias_core.errors import IliasError
 from ilias_core.models import (
     CourseContentsResult,
     CoursesResult,
@@ -30,7 +30,7 @@ from ilias_core.models import (
 )
 from ilias_core.secrets import Secret
 from ilias_core.service import Service, open_service
-from ilias_core.setup import filter_instances, list_instances_json, run_setup
+from ilias_core.setup import list_instances_json, run_setup
 
 from . import output, prompts
 from rich.console import Console
