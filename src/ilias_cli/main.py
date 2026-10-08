@@ -33,6 +33,9 @@ from ilias_core.service import Service, open_service
 from ilias_core.setup import filter_instances, list_instances_json, run_setup
 
 from . import output, prompts
+from rich.console import Console
+
+err_console = Console(stderr=True)
 
 app = typer.Typer(
     help=(
@@ -313,10 +316,124 @@ def setup(
 
     # Interactive path (S4)
     if json_output:
-        output.print_json({"ok": False, "command": "setup", "error": {"code": "not_implemented", "message": "interactive setup not yet implemented (S4)"}})
+        output.print_json({"ok": False, "command": "setup", "error": {"code": "not_implemented", "message": "interactive setup not supported with --json"}})
     else:
-        output.print_error("Interaktiver Modus noch nicht implementiert (S4).")
+        instance_key = _interactive_instance_picker()
+        if instance_key is None:
+            output.print_error("Abgebrochen, nichts gespeichert.")
+            raise typer.Exit(code=1)
+        # Re-run setup with selected instance (non-interactive path will handle the rest)
+        # For now, we just show the selected instance
+        print(f"Ausgewählt: {instance_key}")
+        # TODO: Continue with username/password prompts
+        output.print_error("Interaktiver Setup nach Instanz-Auswahl noch nicht vollständig implementiert.")
     raise typer.Exit(code=1)
+
+
+def _interactive_instance_picker() -> str | None:
+    """Interaktive Instanz-Auswahl mit Autovervollständigung (prompt_toolkit).
+
+    Returns the selected instance key or None if aborted.
+    """
+    try:
+        from prompt_toolkit import prompt
+        from prompt_toolkit.completion import Completer, Completion
+        from prompt_toolkit.shortcuts import CompleteStyle
+    except ImportError:
+        # Fallback: numbered list
+        return _interactive_instance_picker_fallback()
+
+    from ilias_core.config import BUILTIN_INSTANCES
+
+    class InstanceCompleter(Completer):
+        def __init__(self):
+            self.instances = list(BUILTIN_INSTANCES.items())
+
+        def get_completions(self, document, complete_event):
+            text = document.text.lower()
+            for key, profile in self.instances:
+                haystack = " ".join([key, profile.name, profile.city, profile.lms]).lower()
+                if not text or text in haystack:
+                    display = f"{key}: {profile.name} ({profile.city}, {profile.lms})"
+                    if profile.requires_totp:
+                        display += " (2FA)"
+                    yield Completion(key, start_position=-len(document.text), display=display)
+
+    # Print available instances first
+    err_console = Console(stderr=True)
+    err_console.print("Verfügbare Instanzen (tippen zum Filtern):")
+    for key, profile in BUILTIN_INSTANCES.items():
+        totp = " (2FA)" if profile.requires_totp else ""
+        err_console.print(f"  {key}: {profile.name} ({profile.city}, {profile.lms}){totp}")
+
+    try:
+        selected = prompt(
+            "Instanz > ",
+            completer=InstanceCompleter(),
+            complete_style=CompleteStyle.COLUMN,
+            err=True,
+        ).strip()
+    except (KeyboardInterrupt, EOFError):
+        return None
+
+    if selected in BUILTIN_INSTANCES:
+        return selected
+
+    # If user typed a display name, try to match
+    for key, profile in BUILTIN_INSTANCES.items():
+        if selected.lower() in profile.name.lower() or selected.lower() == key.lower():
+            return key
+
+    err_console.print(f"[bold red]Fehler:[/bold red] Unbekannte Instanz {selected!r}.")
+    return None
+
+
+def _interactive_instance_picker_fallback() -> str | None:
+    """Fallback: nummerierte Liste mit Filter-Eingabe."""
+    from ilias_core.config import BUILTIN_INSTANCES
+    from rich.console import Console
+
+    err_console = Console(stderr=True)
+
+    while True:
+        err_console.print("\nVerfügbare Instanzen:")
+        for i, (key, profile) in enumerate(BUILTIN_INSTANCES.items(), 1):
+            totp = " (2FA)" if profile.requires_totp else ""
+            err_console.print(f"  {i}. {key}: {profile.name} ({profile.city}, {profile.lms}){totp}")
+
+        err_console.print("Eingabe: Nummer, Instanz-Key, oder Teilstring zum Filtern (Enter=Abbruch)")
+        try:
+            choice = sys.stdin.readline()
+            if not choice:
+                return None
+            choice = choice.strip()
+        except (KeyboardInterrupt, EOFError):
+            return None
+
+        if not choice:
+            return None
+
+        # Try as number
+        if choice.isdigit():
+            idx = int(choice) - 1
+            keys = list(BUILTIN_INSTANCES.keys())
+            if 0 <= idx < len(keys):
+                return keys[idx]
+
+        # Try as key or filter
+        choice_lower = choice.lower()
+        matches = []
+        for key, profile in BUILTIN_INSTANCES.items():
+            haystack = " ".join([key, profile.name, profile.city, profile.lms]).lower()
+            if choice_lower in haystack:
+                matches.append(key)
+
+        if len(matches) == 1:
+            return matches[0]
+        elif len(matches) > 1:
+            err_console.print(f"Mehrdeutig: {', '.join(matches)}. Bitte genauer eingeben.")
+        else:
+            err_console.print(f"Keine Instanz passt auf {choice!r}.")
 
 
 @app.command()
