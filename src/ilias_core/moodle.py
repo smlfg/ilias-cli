@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 from httpx import HTTPStatusError, RequestError, TimeoutException
+from pathlib import Path
 
 from .config import InstanceProfile
 from .exceptions import AuthError, NetworkError, ParseError, SessionExpiredError, moodle_error_to_exception
@@ -74,7 +75,7 @@ class MoodleBackend:
             raise NetworkError(f"Netzwerkfehler bei Token-Anfrage: {e}") from e
         except HTTPStatusError as e:
             if e.response.status_code >= 500:
-                raise NetworkError(f"Serverfehler {e.response.status_code}: {e}") from e
+                raise NetworkError(f"Serverfehler {e.response.status_code}") from e
             # 4xx wird unten als ParseError behandelt
 
         # Antwort parsen (sollte JSON sein)
@@ -82,21 +83,21 @@ class MoodleBackend:
             data = resp.json()
         except Exception as e:
             # Unerwartete Antwort (HTML, etc.)
-            raise ParseError(f"Unerwartete Antwort von /login/token.php: {resp.text[:200]}") from e
+            raise ParseError("Unerwartete Antwort von /login/token.php") from e
 
         return MoodleTokenResponse.from_json(data)
 
     def _verify_token(self, token: str) -> MoodleSiteInfo:
         """POST /webservice/rest/server.php mit wstoken, wsfunction=core_webservice_get_site_info."""
         url = f"{self.base_url}/webservice/rest/server.php"
-        params = {
+        data = {
             "wstoken": token,
             "wsfunction": "core_webservice_get_site_info",
             "moodlewsrestformat": "json",
         }
 
         try:
-            resp = self.client.post(url, params=params)
+            resp = self.client.post(url, data=data)
             resp.raise_for_status()
         except TimeoutException as e:
             raise NetworkError(f"Timeout bei Site-Info: {e}") from e
@@ -104,12 +105,12 @@ class MoodleBackend:
             raise NetworkError(f"Netzwerkfehler bei Site-Info: {e}") from e
         except HTTPStatusError as e:
             if e.response.status_code >= 500:
-                raise NetworkError(f"Serverfehler {e.response.status_code}: {e}") from e
+                raise NetworkError(f"Serverfehler {e.response.status_code}") from e
 
         try:
             data = resp.json()
         except Exception as e:
-            raise ParseError(f"Unerwartete Antwort von core_webservice_get_site_info: {resp.text[:200]}") from e
+            raise ParseError("Unerwartete Antwort von core_webservice_get_site_info") from e
 
         site_info = MoodleSiteInfo.from_json(data)
 

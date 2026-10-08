@@ -167,11 +167,18 @@ def _make_handler(world: FakeMoodleWorld):
                 self._send_json(200, {"error": "Invalid login", "errorcode": "invalidlogin"})
 
         def _handle_siteinfo(self, body: bytes):
-            # Params sind in der Query String für GET, aber Moodle Mobile nutzt POST mit params
+            # Params können in Query String ODER im POST Body (form data) sein
             parsed = urllib.parse.urlsplit(self.path)
             query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
-            wstoken = query.get("wstoken", [""])[0]
-            wsfunction = query.get("wsfunction", [""])[0]
+            ctype = self.headers.get("Content-Type", "")
+            form = (
+                urllib.parse.parse_qs(body.decode("utf-8", "replace"), keep_blank_values=True)
+                if "form-urlencoded" in ctype
+                else {}
+            )
+            
+            wstoken = query.get("wstoken", form.get("wstoken", [""]))[0]
+            wsfunction = query.get("wsfunction", form.get("wsfunction", [""]))[0]
 
             if world.siteinfo_mode == "error503":
                 self._send_json(503, {"error": "Service Unavailable"})

@@ -8,10 +8,11 @@ class IliasCliError(Exception):
 
     exit_code: int = 1
 
-    def __init__(self, message: str, *, exit_code: int | None = None):
+    def __init__(self, message: str, *, exit_code: int | None = None, errorcode: str | None = None):
         super().__init__(message)
         if exit_code is not None:
             self.exit_code = exit_code
+        self.errorcode = errorcode
 
 
 class AuthError(IliasCliError):
@@ -62,9 +63,9 @@ MOODLE_ERROR_CODES = {
 def moodle_error_to_exception(errorcode: str, message: str | None = None) -> IliasCliError:
     """Wandelt Moodle errorcode in passende Exception um."""
     if errorcode == "invalidlogin":
-        return AuthError(message or MOODLE_ERROR_CODES.get(errorcode, "Ungültige Anmeldedaten"))
+        return AuthError(message or MOODLE_ERROR_CODES.get(errorcode, "Ungültige Anmeldedaten"), errorcode=errorcode)
     if errorcode == "invalidtoken":
-        return SessionExpiredError(message or MOODLE_ERROR_CODES.get(errorcode, "Token ungültig"))
+        return SessionExpiredError(message or MOODLE_ERROR_CODES.get(errorcode, "Token ungültig"), errorcode=errorcode)
     if errorcode in ("accessexception", "requireslogin"):
-        return SessionExpiredError(message or MOODLE_ERROR_CODES.get(errorcode, "Zugriff verweigert"))
-    return AuthError(message or f"Moodle-Fehler: {errorcode}")
+        return SessionExpiredError(message or MOODLE_ERROR_CODES.get(errorcode, "Zugriff verweigert"), errorcode=errorcode)
+    return AuthError(message or f"Moodle-Fehler: {errorcode}", errorcode=errorcode)

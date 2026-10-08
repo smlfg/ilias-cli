@@ -8,7 +8,7 @@ import sys
 import pytest
 
 from tests.acceptance.leak_check import find_secret_in_paths, find_secret_in_text
-from tests.moodle.conftest import MoodleHarness, PASSWORD, USERNAME, free_port
+from tests.moodle.conftest import MoodleHarness, PASSWORD, USERNAME, free_port, file_mode
 
 AUTH_FAIL_CODES = {1, 2}
 

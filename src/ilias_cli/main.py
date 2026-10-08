@@ -100,31 +100,54 @@ def _print_result_human(result: LoginResult | StatusResult | LogoutResult) -> No
 
 
 def _prompt_username() -> str:
-    return typer.prompt("Benutzername", prompt_suffix=": ")
+    if sys.stdin.isatty():
+        return typer.prompt("Benutzername", prompt_suffix=": ")
+    # Non-TTY: read one line from stdin
+    line = sys.stdin.readline()
+    if not line:
+        return ""
+    return line.rstrip("\n")
 
 
 def _prompt_password() -> str:
-    return getpass.getpass("Passwort: ")
+    if sys.stdin.isatty():
+        return getpass.getpass("Passwort: ", stream=sys.stderr)
+    # Non-TTY: read one line from stdin
+    line = sys.stdin.readline()
+    if not line:
+        return ""
+    return line.rstrip("\n")
+
+
+def _prompt_totp() -> str:
+    if sys.stdin.isatty():
+        return typer.prompt("TOTP-Code", prompt_suffix=": ", hide_input=True)
+    # Non-TTY: read one line from stdin
+    line = sys.stdin.readline()
+    if not line:
+        return ""
+    return line.rstrip("\n")
 
 
 def _handle_exception(e: Exception, json_output: bool) -> int:
     """Behandelt Exceptions und gibt passenden Exit-Code zurück."""
     if isinstance(e, (AuthError, NotLoggedInError, SessionExpiredError, NetworkError, ParseError)):
-        if json_output:
-            # Minimal JSON für Fehler
-            import json
+        # JSON immer auf stdout ausgeben
+        import json
 
-            print(json.dumps({"success": False, "error": str(e), "exit_code": e.exit_code}, ensure_ascii=False))
-        else:
+        error_data = {"success": False, "error": str(e), "exit_code": e.exit_code}
+        if hasattr(e, "errorcode") and e.errorcode:
+            error_data["errorcode"] = e.errorcode
+        print(json.dumps(error_data, ensure_ascii=False))
+        if not json_output:
             console.print(f"[red]Fehler:[/red] {e}")
         return e.exit_code
 
     # Unerwarteter Fehler
-    if json_output:
-        import json
+    import json
 
-        print(json.dumps({"success": False, "error": "Interner Fehler", "exit_code": 1}, ensure_ascii=False))
-    else:
+    print(json.dumps({"success": False, "error": "Interner Fehler", "exit_code": 1}, ensure_ascii=False))
+    if not json_output:
         console.print(f"[red]Interner Fehler:[/red] {e}")
     return 1
 
@@ -134,7 +157,7 @@ def login(
     instance: Annotated[str | None, typer.Option("--instance", "-i", help="Instanz-Profil (z. B. hs-mannheim)")] = None,
     config_dir: Annotated[str | None, typer.Option("--config-dir", help="Konfigurationsverzeichnis")] = None,
     base_url: Annotated[str | None, typer.Option("--base-url", help="Base-URL überschreiben")] = None,
-    json_output: Annotated[bool, typer.Option("--json", help="JSON-Ausgabe")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="JSON-Ausgabe (nur JSON, keine Prompts auf stdout)")] = False,
 ) -> None:
     """Login mit Benutzername/Passwort (Moodle) oder OIDC+TOTP (ILIAS)."""
     try:
@@ -152,20 +175,22 @@ def login(
             if profile.lms == "moodle":
                 result = backend.login(username, password)
             else:
-                totp = typer.prompt("TOTP-Code", prompt_suffix=": ", hide_input=True)
+                totp = _prompt_totp()
                 result = backend.login(username, password, totp=totp)
 
-        if json_output:
-            _print_result_json(result)
-        else:
+        # JSON immer auf stdout ausgeben
+        _print_result_json(result)
+        # Human output nur ohne --json auf stderr
+        if not json_output:
             _print_result_human(result)
 
-        raise typer.Exit(code=result.exit_code)
-
+        exit_code = result.exit_code
     except typer.Exit:
         raise
     except Exception as e:
-        raise typer.Exit(code=_handle_exception(e, json_output))
+        exit_code = _handle_exception(e, json_output)
+    
+    raise typer.Exit(code=exit_code)
 
 
 @app.command()
@@ -173,7 +198,7 @@ def status(
     instance: Annotated[str | None, typer.Option("--instance", "-i", help="Instanz-Profil (z. B. hs-mannheim)")] = None,
     config_dir: Annotated[str | None, typer.Option("--config-dir", help="Konfigurationsverzeichnis")] = None,
     base_url: Annotated[str | None, typer.Option("--base-url", help="Base-URL überschreiben")] = None,
-    json_output: Annotated[bool, typer.Option("--json", help="JSON-Ausgabe")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="JSON-Ausgabe (nur JSON auf stdout)")] = False,
 ) -> None:
     """Prüft ob eine gültige Session/Token existiert."""
     try:
@@ -186,17 +211,19 @@ def status(
             result = backend.status()
             result.last_checked = datetime.now()
 
-        if json_output:
-            _print_result_json(result)
-        else:
+        # JSON immer auf stdout ausgeben
+        _print_result_json(result)
+        # Human output nur ohne --json auf stderr
+        if not json_output:
             _print_result_human(result)
 
-        raise typer.Exit(code=result.exit_code)
-
+        exit_code = result.exit_code
     except typer.Exit:
         raise
     except Exception as e:
-        raise typer.Exit(code=_handle_exception(e, json_output))
+        exit_code = _handle_exception(e, json_output)
+    
+    raise typer.Exit(code=exit_code)
 
 
 @app.command()
@@ -204,7 +231,7 @@ def logout(
     instance: Annotated[str | None, typer.Option("--instance", "-i", help="Instanz-Profil (z. B. hs-mannheim)")] = None,
     config_dir: Annotated[str | None, typer.Option("--config-dir", help="Konfigurationsverzeichnis")] = None,
     base_url: Annotated[str | None, typer.Option("--base-url", help="Base-URL überschreiben")] = None,
-    json_output: Annotated[bool, typer.Option("--json", help="JSON-Ausgabe")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="JSON-Ausgabe (nur JSON auf stdout)")] = False,
 ) -> None:
     """Löscht lokale Session/Token."""
     try:
@@ -216,17 +243,19 @@ def logout(
         with create_backend(profile, config_dir) as backend:
             result = backend.logout()
 
-        if json_output:
-            _print_result_json(result)
-        else:
+        # JSON immer auf stdout ausgeben
+        _print_result_json(result)
+        # Human output nur ohne --json auf stderr
+        if not json_output:
             _print_result_human(result)
 
-        raise typer.Exit(code=result.exit_code)
-
+        exit_code = result.exit_code
     except typer.Exit:
         raise
     except Exception as e:
-        raise typer.Exit(code=_handle_exception(e, json_output))
+        exit_code = _handle_exception(e, json_output)
+    
+    raise typer.Exit(code=exit_code)
 
 
 @app.command()
@@ -268,10 +297,13 @@ def config_show(
                 table.add_row("Client ID", profile.client_id)
             console.print(table)
 
+        exit_code = 0
     except typer.Exit:
         raise
     except Exception as e:
-        raise typer.Exit(code=_handle_exception(e, json_output))
+        exit_code = _handle_exception(e, json_output)
+    
+    raise typer.Exit(code=exit_code)
 
 
 if __name__ == "__main__":
