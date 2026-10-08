@@ -15,6 +15,7 @@ import typer
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
+from rich.tree import Tree
 
 from ilias_core import (
     CoreError,
@@ -32,6 +33,30 @@ app = typer.Typer(
 
 err_console = Console(stderr=True, highlight=False, soft_wrap=True)
 out_console = Console(highlight=False, soft_wrap=True)
+
+_MOD_ICONS = {
+    "folder": ("📁", "Ordner"),
+    "resource": ("📄", "Datei"),
+    "assign": ("📝", "Aufgabe"),
+    "forum": ("💬", "Forum"),
+    "url": ("🔗", "Link"),
+    "quiz": ("❓", "Test"),
+    "page": ("📃", "Seite"),
+    "label": ("🏷️", "Label"),
+    "choice": ("📊", "Abstimmung"),
+    "lti": ("🔗", "Externes Tool"),
+}
+_DEFAULT_ICON = ("🔹", "Modul")
+
+_SECTION_DEFAULT_NAMES = {"", "allgemeines", "general", "abschnitt 0"}
+
+
+def _human_size(size: int | None) -> str:
+    if size is None:
+        return ""
+    if size >= 1024 * 1024:
+        return f"{size / 1024 / 1024:.1f} MB"
+    return f"{max(1, round(size / 1024))} KB"
 
 def _instance_option() -> Any:
     return typer.Option(
@@ -69,6 +94,7 @@ def _fail(
         hint=exc.hint,
         instance=service.instance.key if service else None,
         lms=service.instance.lms if service else None,
+        candidates=getattr(exc, "candidates", None),
     )
     if json_output:
         _dump(result.to_json_dict())
@@ -177,6 +203,93 @@ def logout(
     else:
         out_console.print(f"Keine gespeicherte Session für {result.instance} ({result.lms}) - nichts zu tun.")
     out_console.print(f"[dim]{result.timestamp}[/dim]")
+
+
+# ---------------------------------------------------------------- F2/F3
+@app.command()
+def courses(
+    instance: str | None = _instance_option(),
+    json_output: bool = _json_option(),
+) -> None:
+    """Eigene Kurse der Instanz auflisten (ID, Kurzname, Name, Semester)."""
+    result = _run("courses", json_output, instance, lambda service: service.courses())
+    if json_output:
+        _dump(result.to_json_dict())
+        return
+    table = Table(title=f"Kurse ({result.instance}, {result.lms})")
+    table.add_column("ID", justify="right")
+    table.add_column("Kurzname")
+    table.add_column("Name")
+    table.add_column("Semester")
+    for course in result.courses:
+        table.add_row(
+            str(course.id),
+            escape(course.shortname),
+            escape(course.fullname),
+            escape(course.semester or "–"),
+        )
+    out_console.print(table)
+
+
+def _markers(visible: bool, uservisible: bool, availability: str | None) -> str:
+    text = ""
+    if not uservisible:
+        text += escape(" [gesperrt]")
+        if availability:
+            text += f" – {escape(availability)}"
+    if not visible:
+        text += escape(" [verborgen]")
+    return text
+
+
+def _node_label(node) -> str:
+    if node.type == "folder":
+        return f"📁 {escape(node.name)}"
+    if node.type == "url":
+        target = f" → {escape(node.url)}" if node.url else ""
+        return f"🔗 {escape(node.name)}{target}"
+    size = f" ({_human_size(node.size)})" if node.size is not None else ""
+    return f"📄 {escape(node.name)}{size}"
+
+
+@app.command(name="ls")
+def ls(
+    kurs: str,
+    instance: str | None = _instance_option(),
+    depth: int | None = typer.Option(None, "--depth", help="Tiefe: 1=Abschnitte, 2=+Module, 3=+Dateien, ab 4 pro Ordner­ebene mehr. Standard: alles."),
+    json_output: bool = _json_option(),
+) -> None:
+    """Inhalt eines Kurses als Baum (Abschnitte, Module, Ordner, Dateien)."""
+    if depth is not None and depth < 1:
+        raise typer.BadParameter("--depth muss mindestens 1 sein.")
+    result = _run("ls", json_output, instance, lambda service: service.ls(kurs, depth))
+    if json_output:
+        _dump(result.to_json_dict())
+        return
+    course = result.course
+    root = Tree(
+        f"[bold]{escape(course['fullname'])}[/bold] ({escape(course['shortname'])}) [dim]#{course['id']}[/dim]"
+    )
+    for section in result.sections:
+        if not section.modules and section.name.strip().lower() in _SECTION_DEFAULT_NAMES:
+            continue  # leere Abschnitte ohne Titel weglassen (JSON enthält sie)
+        title = escape(section.name) if section.name else f"[dim]Abschnitt {section.number}[/dim]"
+        branch = root.add(f"📂 {title}{_markers(section.visible, section.uservisible, None)}")
+        for module in section.modules:
+            icon, _kind = _MOD_ICONS.get(module.modname, _DEFAULT_ICON)
+            label = f"{icon} {escape(module.name)}"
+            if module.modname and module.modname not in _MOD_ICONS:
+                label += f" [dim]({escape(module.modname)})[/dim]"
+            mbranch = branch.add(label + _markers(module.visible, module.uservisible, module.availability))
+            for node in module.children:
+                _add_node(mbranch, node)
+    out_console.print(root)
+
+
+def _add_node(branch, node) -> None:
+    nb = branch.add(_node_label(node))
+    for child in node.children:
+        _add_node(nb, child)
 
 
 def main_entrypoint() -> None:  # pragma: no cover - Einstieg über Konsolen-Skript

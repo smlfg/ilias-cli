@@ -41,3 +41,13 @@ class IliasBackend(Backend):
     def logout(self) -> LogoutResult:
         removed = self.store.delete()
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
+
+    def courses(self):
+        raise NotSupportedError(
+            "Kurse sind für ILIAS noch nicht implementiert.", hint=_HINT
+        )
+
+    def course_contents(self, course_id: int):
+        raise NotSupportedError(
+            "Kurse sind für ILIAS noch nicht implementiert.", hint=_HINT
+        )

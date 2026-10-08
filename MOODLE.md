@@ -129,8 +129,127 @@ Zugangsdaten, und ein Live-Test ist eine eigene Entscheidung des Nutzers (Nutzun
 der Hochschule, §8 N3 der Anforderungen). Der erste echte Lauf gehört in eine separate
 REAL_TEST.md-Notiz, wie auf `feature/saml-uni-mannheim`.
 
-## 9. Noch offen
+## 9. `ilias courses` (F2) und `ilias ls` (F3)
 
-Kurse, Dateien, Fristen (F2–F5) für Moodle fehlen; der ILIAS-Login (OIDC/Keycloak +
-TOTP) ist in diesem Branch weiterhin nur ein Platzhalter (Exit 1), `status`/`logout`
-funktionieren dort, weil der Session-Speicher backend-unabhängig ist.
+```bash
+ilias courses [--instance X] [--json]
+ilias ls <kurs> [--instance X] [--depth N] [--json]
+```
+
+### Kurse
+
+Ablauf: gespeicherter Token → `core_webservice_get_site_info` (liefert `userid`) →
+`core_enrol_get_users_courses` mit `userid=<id>`. `<kurs>` bei `ls` ist eine numerische
+Kurs-ID oder ein eindeutiger Teilstring von Kurz-/Langname (Klein-/Großschreibung egal);
+ein exakter Kurz- oder Langname schlägt Teilstrings. Kein Treffer → Exit 1,
+`error.code = "course_not_found"`; mehrere Treffer → Exit 1, `"course_ambiguous"` mit
+`error.candidates = [{"id", "shortname", "fullname"}, …]` und einer Kandidatenliste in
+der Fehlermeldung. Kurs → Inhalte via `core_course_get_contents` mit `courseid=<id>`.
+
+Semester-Label aus `startdate` (Europe/Berlin): Apr–Sep `"SoSe YYYY"`, Okt–Dez
+`"WiSe YYYY/YY+1"`, Jan–Mär `"WiSe YYYY-1/YY"`; `startdate` 0/fehlend → `null`.
+
+`--json` für `courses` – genau ein Objekt:
+
+```json
+{"instance": "hs-mannheim", "lms": "moodle", "count": 2,
+ "courses": [{"id": 1234, "fullname": "…", "shortname": "…", "category": 17,
+              "semester": "WiSe 2026/27", "visible": true,
+              "startdate": "2026-10-01T02:00:00+02:00", "enddate": null,
+              "url": "https://…/course/view.php?id=1234"}],
+ "timestamp": "…"}
+```
+
+Text-Ausgabe: Rich-Tabelle (ID, Kurzname, Name, Semester), sortiert nach Semester
+(neuestes zuerst, `null` zuletzt), dann Name.
+
+### ls: Baum des Kurses
+
+`--depth N`: 1 = Abschnitte, 2 = +Module, 3 = +Dateien/erste Ordner­ebene, jede weitere
+Ebene ein Ordner­level mehr. Standard: unbegrenzt. `N < 1` → Usage-Fehler (Exit 2).
+
+Modul-Ordner (`modname == "folder"`) werden aus den `filepath`-Angaben der `contents`
+ausgerollt (`/`, `/Blatt 1/`, `/Blatt 1/Lösungen/` → verschachtelte Ordner). `resource`
+zeigt seine Dateien, `url` das Ziel-URL, alle anderen Module (`assign`, `forum`,
+`quiz`, `page`, `label`, `choice`, …) sind Blätter mit Typ-Icon. Module/Abschnitte
+mit `uservisible: false` stehen weiter in der Liste, markiert `[gesperrt]` plus
+HTML-bereinigtem `availabilityinfo`; `visible: 0` → `[verborgen]`. `label`-Module
+zeigen den HTML-befreiten Name (max. 60 Zeichen). Leere Abschnitte ohne Namen werden
+in der Text-Ansicht weggelassen, im JSON bleiben sie enthalten. Rich-Markup in
+serverseitigen Strings wird escaped.
+
+`--json` für `ls` – genau ein Objekt:
+
+```json
+{"instance": "hs-mannheim", "lms": "moodle",
+ "course": {"id": 1234, "fullname": "…", "shortname": "…"},
+ "depth": null,
+ "sections": [{"id": 501, "number": 0, "name": "Allgemeines", "visible": true,
+   "uservisible": true,
+   "modules": [{"id": 9010, "name": "Übungsblätter", "modname": "folder",
+     "url": "https://…/mod/folder/view.php?id=9010", "visible": true,
+     "uservisible": true, "availability": null,
+     "children": [{"type": "folder", "name": "Blatt 1", "path": "/Blatt 1/",
+                   "children": [{"type": "file", "name": "blatt01.pdf",
+                                 "path": "/Blatt 1/", "size": 183456,
+                                 "mimetype": "application/pdf",
+                                 "timemodified": "2026-10-15T02:00:00+02:00",
+                                 "fileurl": "https://…/pluginfile.php/…"}]}]}]}],
+ "timestamp": "…"}
+```
+
+Knoten-Typen unter `children`: `{"type": "folder", "name", "path", "children": […]}` ·
+`{"type": "file", "name", "path", "size", "mimetype", "timemodified", "fileurl"}` ·
+`{"type": "url", "name", "url"}`. `fileurl` enthält niemals den Token (Downloads sind F5).
+
+Beispiel-Text-Baum (Fake-Fixtures, `ilias ls 1234`):
+
+```
+Mathe 1 (WS 2026/27) (MA1-WS26) #1234
+├── 📂 Allgemeines
+│   ├── 🔗 Kursseite
+│   │   └── 🔗 FH-Portal → https://www.example.edu/fh
+│   ├── 💬 Ankündigungen
+│   └── 🏷️ Herzlich willkommen im Kurs!
+├── 📂 Übungen
+│   ├── 📁 Übungsblätter
+│   │   ├── 📁 Blatt 1
+│   │   │   ├── 📁 Lösungen
+│   │   │   │   └── 📄 blatt01_lsg.pdf (93 KB)
+│   │   │   └── 📄 blatt01.pdf (179 KB)
+│   │   └── 📁 Blatt 2
+│   │       └── 📄 blatt02.pdf (254 KB)
+│   ├── 📝 Hausaufgabe 1
+│   └── ❓ Probeklausur [verborgen]
+├── 📂 Material
+│   ├── 📄 Skript.pdf
+│   │   └── 📄 Skript.pdf (4.0 MB)
+│   ├── 📃 Kursübersicht
+│   ├── 📊 Terminumfrage
+│   └── 📁 [Klausur] Altklausuren
+│       └── 📁 2025
+│           └── 📄 klausur2025.pdf (512 KB)
+└── 📂 Prüfungsorganisation
+    └── 📝 Abschlussprojekt [gesperrt] – Nicht verfügbar, es sei denn: …
+```
+
+(Icons: 📁 Ordner, 📄 Datei mit Größe, 📝 Aufgabe, 💬 Forum, 🔗 Link, ❓ Test,
+📃 Seite, 📊 Abstimmung; unbekannte Module: 🔹 mit Modname.)
+
+Fehler- und Exit-Codes entsprechen Abschnitt 4 (`course_not_found`/`course_ambiguous`
+→ 1, `not_logged_in` → 2, `session_expired` → 3, Netzwerk/5xx → 4, Parser → 5).
+Für das ILIAS-Backend werfen `courses`/`ls` einen klaren
+`NotSupportedError` ("für ILIAS noch nicht implementiert", Exit 1).
+
+### Tokens und Sicherheit
+
+Der Token wird ausschließlich als Formularfeld `wstoken` im POST-Body an
+`/webservice/rest/server.php` gesendet – nie in der URL/Query. Ausgabe (Text,
+`--json`, stderr) und gespeicherte Dateien enthalten nie den Token.
+
+## 10. Noch offen
+
+Dateien herunterladen (F5), Fristen (F4), Sync (F6) für Moodle fehlen; der
+ILIAS-Login (OIDC/Keycloak + TOTP) ist in diesem Branch weiterhin nur ein
+Platzhalter (Exit 1), `status`/`logout` funktionieren dort, weil der
+Session-Speicher backend-unabhängig ist.

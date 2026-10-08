@@ -25,3 +25,13 @@ def to_iso(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=_BERLIN)
     return value.isoformat(timespec="seconds")
+
+
+def epoch_iso(value: int | float | None) -> str | None:
+    """Unix-Timestamp -> ISO 8601 in Europe/Berlin; 0/None/ungültig -> None."""
+    if not value or not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    try:
+        return datetime.fromtimestamp(value, _BERLIN).isoformat(timespec="seconds")
+    except (OverflowError, OSError, ValueError):  # pragma: no cover
+        return None

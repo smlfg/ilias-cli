@@ -76,3 +76,21 @@ class NotSupportedError(CoreError):
 
     exit_code = EXIT_AUTH
     code = "not_supported"
+
+
+class CourseNotFoundError(CoreError):
+    """Kein Kurstreffer für die Anfrage."""
+
+    exit_code = EXIT_AUTH
+    code = "course_not_found"
+
+
+class CourseAmbiguousError(CoreError):
+    """Mehrere Kurse passen auf die Anfrage."""
+
+    exit_code = EXIT_AUTH
+    code = "course_ambiguous"
+
+    def __init__(self, message: str, *, candidates: list[dict] | None = None, hint: str | None = None) -> None:
+        super().__init__(message, hint=hint)
+        self.candidates = candidates or []

@@ -49,6 +49,303 @@ class RecordedRequest:
         return values[0] if values else None
 
 
+def _epoch(year: int, month: int, day: int) -> int:
+    from datetime import datetime, timezone
+
+    return int(datetime(year, month, day, tzinfo=timezone.utc).timestamp())
+
+
+def default_courses() -> list[dict]:
+    return [
+        {
+            "id": 1234,
+            "shortname": "MA1-WS26",
+            "fullname": "Mathe 1 (WS 2026/27)",
+            "displayname": "Mathe 1 (WS 2026/27)",
+            "category": 17,
+            "visible": 1,
+            "startdate": _epoch(2026, 10, 1),
+            "enddate": _epoch(2027, 3, 31),
+            "format": "topics",
+            "summary": "<p>Lineare Algebra und Analysis</p>",
+        },
+        {
+            "id": 1235,
+            "shortname": "MA2-SS27",
+            "fullname": "Mathe 2 (SoSe 2027)",
+            "displayname": "Mathe 2 (SoSe 2027)",
+            "category": 17,
+            "visible": 1,
+            "startdate": _epoch(2027, 4, 1),
+            "enddate": _epoch(2027, 9, 30),
+            "format": "topics",
+            "summary": "",
+        },
+        {
+            "id": 1236,
+            "shortname": "PR1",
+            "fullname": "Programmieren 1",
+            "displayname": "Programmieren 1",
+            "category": 17,
+            "visible": 1,
+            "startdate": _epoch(2027, 2, 1),
+            "enddate": _epoch(2027, 3, 31),
+            "format": "topics",
+            "summary": "",
+        },
+        {
+            "id": 1237,
+            "shortname": "BIO",
+            "fullname": "Biologie Einführung",
+            "displayname": "Biologie Einführung",
+            "category": 9,
+            "visible": 1,
+            "startdate": 0,
+            "enddate": 0,
+            "format": "topics",
+            "summary": "",
+        },
+        {
+            "id": 1238,
+            "shortname": "ALT",
+            "fullname": "[Klausur] Altklausuren",
+            "displayname": "[Klausur] Altklausuren",
+            "category": 9,
+            "visible": 0,
+            "startdate": _epoch(2026, 4, 1),
+            "enddate": 0,
+            "format": "topics",
+            "summary": "",
+        },
+    ]
+
+
+def _file(name, path, size=183456, mtime=_epoch(2026, 10, 15), mime="application/pdf"):
+    import urllib.parse
+
+    return {
+        "type": "file",
+        "filename": name,
+        "filepath": path,
+        "filesize": size,
+        "fileurl": f"{{base}}/webservice/pluginfile.php/777/mod_folder/content/0/"
+        + urllib.parse.quote(path.strip("/") + "/" + name)
+        + "?forcedownload=1",
+        "timecreated": mtime,
+        "timemodified": mtime,
+        "mimetype": mime,
+        "isexternalfile": False,
+        "sortorder": 0,
+    }
+
+
+def default_contents() -> dict[int, list[dict]]:
+    return {
+        1234: [
+            {
+                "id": 501,
+                "name": "Allgemeines",
+                "visible": 1,
+                "summary": "",
+                "summaryformat": 1,
+                "section": 0,
+                "uservisible": True,
+                "modules": [
+                    {
+                        "id": 9001,
+                        "url": "{base}/mod/url/view.php?id=9001",
+                        "name": "Kursseite",
+                        "modname": "url",
+                        "visible": 1,
+                        "uservisible": True,
+                        "contents": [
+                            {
+                                "type": "url",
+                                "filename": "FH-Portal",
+                                "fileurl": "https://www.example.edu/fh",
+                                "timemodified": _epoch(2026, 10, 1),
+                            }
+                        ],
+                    },
+                    {
+                        "id": 9002,
+                        "url": "{base}/mod/forum/view.php?id=9002",
+                        "name": "Ankündigungen",
+                        "modname": "forum",
+                        "visible": 1,
+                        "uservisible": True,
+                    },
+                    {
+                        "id": 9003,
+                        "url": "{base}/mod/label/view.php?id=9003",
+                        "name": "<p>Herzlich willkommen <b>im Kurs</b>!</p>",
+                        "modname": "label",
+                        "visible": 1,
+                        "uservisible": True,
+                    },
+                ],
+            },
+            {
+                "id": 502,
+                "name": "Übungen",
+                "visible": 1,
+                "summary": "",
+                "section": 1,
+                "uservisible": True,
+                "modules": [
+                    {
+                        "id": 9010,
+                        "url": "{base}/mod/folder/view.php?id=9010",
+                        "name": "Übungsblätter",
+                        "modname": "folder",
+                        "visible": 1,
+                        "uservisible": True,
+                        "contents": [
+                            _file("blatt01.pdf", "/Blatt 1/"),
+                            _file("blatt01_lsg.pdf", "/Blatt 1/Lösungen/", size=95432),
+                            _file("blatt02.pdf", "/Blatt 2/", size=260000),
+                        ],
+                    },
+                    {
+                        "id": 9011,
+                        "url": "{base}/mod/assign/view.php?id=9011",
+                        "name": "Hausaufgabe 1",
+                        "modname": "assign",
+                        "visible": 1,
+                        "uservisible": True,
+                    },
+                    {
+                        "id": 9012,
+                        "url": "{base}/mod/quiz/view.php?id=9012",
+                        "name": "Probeklausur",
+                        "modname": "quiz",
+                        "visible": 0,
+                        "uservisible": True,
+                    },
+                ],
+            },
+            {
+                "id": 503,
+                "name": "Material",
+                "visible": 1,
+                "summary": "",
+                "section": 2,
+                "uservisible": True,
+                "modules": [
+                    {
+                        "id": 9020,
+                        "url": "{base}/mod/resource/view.php?id=9020",
+                        "name": "Skript.pdf",
+                        "modname": "resource",
+                        "visible": 1,
+                        "uservisible": True,
+                        "contents": [
+                            _file("Skript.pdf", "/", size=4194304, mime="application/pdf")
+                        ],
+                    },
+                    {
+                        "id": 9021,
+                        "url": "{base}/mod/page/view.php?id=9021",
+                        "name": "Kursübersicht",
+                        "modname": "page",
+                        "visible": 1,
+                        "uservisible": True,
+                    },
+                    {
+                        "id": 9022,
+                        "url": "{base}/mod/choice/view.php?id=9022",
+                        "name": "Terminumfrage",
+                        "modname": "choice",
+                        "visible": 1,
+                        "uservisible": True,
+                    },
+                    {
+                        "id": 9023,
+                        "url": "{base}/mod/folder/view.php?id=9023",
+                        "name": "[Klausur] Altklausuren",
+                        "modname": "folder",
+                        "visible": 1,
+                        "uservisible": True,
+                        "contents": [_file("klausur2025.pdf", "/2025/", size=524288)],
+                    },
+                ],
+            },
+            {
+                "id": 504,
+                "name": "Prüfungsorganisation",
+                "visible": 1,
+                "summary": "",
+                "section": 3,
+                "uservisible": True,
+                "modules": [
+                    {
+                        "id": 9030,
+                        "url": "{base}/mod/assign/view.php?id=9030",
+                        "name": "Abschlussprojekt",
+                        "modname": "assign",
+                        "visible": 1,
+                        "uservisible": False,
+                        "availabilityinfo": "<div>Nicht verfügbar, es sei denn: die vorherige Aktivität ist abgeschlossen</div>",
+                    }
+                ],
+            },
+            {
+                "id": 505,
+                "name": "",
+                "visible": 1,
+                "summary": "",
+                "section": 4,
+                "uservisible": True,
+                "modules": [],
+            },
+        ],
+        1235: [
+            {
+                "id": 551,
+                "name": "Allgemeines",
+                "visible": 1,
+                "summary": "",
+                "section": 0,
+                "uservisible": True,
+                "modules": [],
+            }
+        ],
+        1236: [
+            {
+                "id": 561,
+                "name": "Allgemeines",
+                "visible": 1,
+                "summary": "",
+                "section": 0,
+                "uservisible": True,
+                "modules": [],
+            }
+        ],
+        1237: [],
+        1238: [
+            {
+                "id": 601,
+                "name": "Allgemeines",
+                "visible": 1,
+                "summary": "",
+                "section": 0,
+                "uservisible": True,
+                "modules": [
+                    {
+                        "id": 6100,
+                        "url": "{base}/mod/folder/view.php?id=6100",
+                        "name": "[Klausur] Altklausuren",
+                        "modname": "folder",
+                        "visible": 1,
+                        "uservisible": True,
+                        "contents": [_file("klausur2024.pdf", "/", size=200000)],
+                    }
+                ],
+            }
+        ],
+    }
+
+
 @dataclass
 class FakeMoodle:
     username: str
@@ -63,6 +360,8 @@ class FakeMoodle:
     tokens: dict[str, str] = field(default_factory=dict)  # token -> username
     requests: list[RecordedRequest] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock)
+    courses: list[dict] = field(default_factory=lambda: default_courses())
+    contents: dict[int, list[dict]] = field(default_factory=lambda: default_contents())
 
     port: int = 0
     _server: ThreadingHTTPServer | None = None
@@ -136,6 +435,10 @@ def _make_handler(world: FakeMoodle):
         def _send_json(self, status: int, payload: dict) -> None:
             self._send(status, json.dumps(payload))
 
+        def _relay(self, payload) -> None:
+            body = json.dumps(payload, ensure_ascii=False).replace("{base}", world.base_url)
+            self._send(200, body)
+
         def _send_html(self, status: int, html: str, ctype: str = "text/html; charset=UTF-8") -> None:
             self._send(status, html, ctype)
 
@@ -207,7 +510,7 @@ def _make_handler(world: FakeMoodle):
             token = rec.form_value("wstoken") or ""
             function = rec.form_value("wsfunction") or ""
             fmt = rec.form_value("moodlewsrestformat") or ""
-            if function != "core_webservice_get_site_info" or fmt != "json":
+            if fmt != "json":
                 return self._send_json(
                     200,
                     {
@@ -237,18 +540,53 @@ def _make_handler(world: FakeMoodle):
                         "debuginfo": "Token was not found in the database",
                     },
                 )
+            if function == "core_webservice_get_site_info":
+                return self._send_json(
+                    200,
+                    {
+                        "sitename": world.sitename,
+                        "username": username,
+                        "fullname": world.fullname,
+                        "userid": world.userid,
+                        "siteurl": world.base_url,
+                        "release": "4.5 (Build: 20250210)",
+                        "version": "2025021000",
+                        "lang": "de",
+                        "siteid": 1,
+                    },
+                )
+            if function == "core_enrol_get_users_courses":
+                if rec.form_value("userid") != str(world.userid):
+                    return self._send_json(
+                        200,
+                        {
+                            "exception": "moodle_exception",
+                            "errorcode": "invalidparameter",
+                            "message": "Invalid parameter value detected",
+                        },
+                    )
+                return self._relay(world.courses)
+            if function == "core_course_get_contents":
+                try:
+                    courseid = int(rec.form_value("courseid") or "")
+                except ValueError:
+                    courseid = -1
+                if courseid in world.contents:
+                    return self._relay(world.contents[courseid])
+                return self._send_json(
+                    200,
+                    {
+                        "exception": "moodle_exception",
+                        "errorcode": "invalidparameter",
+                        "message": "Invalid parameter value detected",
+                    },
+                )
             return self._send_json(
                 200,
                 {
-                    "sitename": world.sitename,
-                    "username": username,
-                    "fullname": world.fullname,
-                    "userid": world.userid,
-                    "siteurl": world.base_url,
-                    "release": "4.5 (Build: 20250210)",
-                    "version": "2025021000",
-                    "lang": "de",
-                    "siteid": 1,
+                    "exception": "webservice_access_exception",
+                    "errorcode": "accessexception",
+                    "message": f"The requested web service function '{function}' is not available",
                 },
             )
 

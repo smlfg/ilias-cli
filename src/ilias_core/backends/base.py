@@ -36,3 +36,12 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def logout(self) -> LogoutResult:
         """Lokale Session löschen."""
+
+    # -- F2/F3: Kurse und Inhalte (Moodle-Backend; ILIAS: NotSupportedError) --
+    @abc.abstractmethod
+    def courses(self):
+        """Kurse des eingeloggten Nutzers (Liste von Course)."""
+
+    @abc.abstractmethod
+    def course_contents(self, course_id: int):
+        """Abschnitts-/Modulbaum des Kurses als Rohdaten des Servers."""

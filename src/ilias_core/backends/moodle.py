@@ -25,8 +25,8 @@ from ..errors import (
     ParseError,
     SessionExpiredError,
 )
-from ..http import HttpClient, json_body
-from ..models import Credentials, LoginResult, LogoutResult, SiteInfo, StatusResult
+from ..http import HttpClient, json_any, json_body
+from ..models import Course, Credentials, LoginResult, LogoutResult, SiteInfo, StatusResult
 from ..secrets import REDACTED
 from ..session import SessionStore
 from .base import Backend
@@ -107,6 +107,76 @@ class MoodleBackend(Backend):
     def logout(self) -> LogoutResult:
         removed = self.store.delete()
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
+
+    # -- F2/F3 -------------------------------------------------------------
+    def _session_token(self) -> str:
+        session = self.store.load()
+        if session is None:
+            raise NotLoggedInError(
+                f"Keine gespeicherte Session für {self.instance.key}.",
+                hint=f"Erst `ilias login --instance {self.instance.key}` aufrufen.",
+            )
+        return session.token
+
+    def courses(self) -> list:
+        """Kern-Ablauf: Token -> site_info (userid) -> core_enrol_get_users_courses."""
+        token = self._session_token()
+        with HttpClient(self.base_url) as client:
+            info = self._site_info(client, token, label="Statusprüfung")
+            if info.userid is None:
+                raise ParseError("Statusprüfung: Antwort enthält keine userid.")
+            data = self._rest_list(
+                client,
+                token,
+                "core_enrol_get_users_courses",
+                {"userid": str(info.userid)},
+                label="Kursliste",
+            )
+        courses = []
+        for item in data:
+            if not isinstance(item, dict):
+                raise ParseError("Kursliste: Eintrag ist kein Objekt.")
+            try:
+                courses.append(Course.from_moodle_json(item, self.base_url))
+            except ValueError as exc:
+                raise ParseError(f"Kursliste: {exc}") from None
+        return courses
+
+    def course_contents(self, course_id: int) -> list:
+        token = self._session_token()
+        with HttpClient(self.base_url) as client:
+            data = self._rest_list(
+                client,
+                token,
+                "core_course_get_contents",
+                {"courseid": str(course_id)},
+                label="Kursinhalt",
+            )
+        return data
+
+    def _rest_list(
+        self,
+        client: HttpClient,
+        token: str,
+        function: str,
+        params: dict[str, str],
+        *,
+        label: str,
+    ) -> list:
+        payload = {
+            "wstoken": token,
+            "wsfunction": function,
+            "moodlewsrestformat": REST_FORMAT,
+            **params,
+        }
+        response = client.post_form(REST_PATH, payload, label=label)
+        data = json_any(response, label=label)
+        if isinstance(data, dict):
+            self._raise_for_error(data, label=label, secrets=(token,))
+            raise ParseError(f"{label}: Antwort ist kein Array.")
+        if not isinstance(data, list):
+            raise ParseError(f"{label}: Antwort ist kein Array (Typ {type(data).__name__}).")
+        return data
 
     # -- Moodle-spezifisch ----------------------------------------------
     def _request_token(self, client: HttpClient, credentials: Credentials) -> str:
