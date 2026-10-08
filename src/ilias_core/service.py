@@ -51,6 +51,8 @@ class Service:
     # -- F2/F3 ----------------------------------------------------------
     def courses(self) -> CoursesResult:
         """Kurse des angemeldeten Nutzers, sortiert (F2)."""
+        # Session/HTTP vor dem Parsen prüfen (Exit 2/3/4; für ILIAS ohne Re-Login).
+        self.backend.prepare_read()
         return CoursesResult(
             instance=self.instance.key,
             lms=self.instance.lms,
@@ -59,6 +61,7 @@ class Service:
 
     def ls(self, query: str, depth: int | None = None) -> CourseContentsResult:
         """Einen Kurs auflösen und seinen Inhalt als Baum liefern (F3)."""
+        self.backend.prepare_read()
         if not self.backend.supports_courses:
             # sofort die passende "nicht unterstützt"-Meldung für ls (nicht die von courses)
             self.backend.course_contents(0)
