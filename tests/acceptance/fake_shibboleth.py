@@ -149,8 +149,8 @@ def idp_consent_page(flow: IdpFlow) -> str:
   <input type="hidden" name="csrf_token" value="{flow.csrf}" />
   <p>Sie sind dabei, auf diesen Dienst zuzugreifen: <strong>ILIAS</strong></p>
   <table id="attributeRelease">
-    <tr><td>eduPersonPrincipalName</td><td>uniid@uni-mannheim.de</td></tr>
-    <tr><td>mail</td><td>student@mail.uni-mannheim.de</td></tr>
+    <tr><td>eduPersonPrincipalName</td><td>uniid@example.org</td></tr>
+    <tr><td>mail</td><td>student@example.org</td></tr>
   </table>
   <input type="hidden" name="_shib_idp_consentIds" value="eduPersonPrincipalName" />
   <input type="hidden" name="_shib_idp_consentIds" value="mail" />

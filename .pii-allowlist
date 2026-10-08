@@ -25,9 +25,3 @@ noreply@github.com
 # Public service-desk address of the HHN computing centre, cited on purpose in
 # ANFORDERUNGEN.md (not a personal address).
 ticket@hs-heilbronn.de
-# Generic placeholder attributes in the fake Shibboleth IdP fixture
-# (tests/acceptance/fake_shibboleth.py, mirrors the real Uni Mannheim consent
-# page). Not a real person. TODO: switch the fixture to @example.org and drop
-# these two lines; left here so the F2/F3 merge round is not disturbed.
-uniid@uni-mannheim.de
-student@mail.uni-mannheim.de
