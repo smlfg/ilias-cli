@@ -46,6 +46,40 @@ def _read_stdin_secret() -> str:
     return line.removesuffix("\n").removesuffix("\r")
 
 
+def _pick_instance_interactive() -> str:
+    """TTY-Auswahl der Instanz: Nummernliste mit Filter-Eingabe (§3.2)."""
+
+    infos = setup_core.list_instances()
+    current = list(infos)
+    while True:
+        typer.echo("Instanz wählen:", err=True)
+        for i, info in enumerate(current, start=1):
+            typer.echo(
+                f"  {i}. {info.name} ({info.key}, {info.city}, {info.lms}, "
+                f"{'2FA' if info.requires_totp else 'ohne 2FA'})",
+                err=True,
+            )
+        query = prompts.ask_line("Nummer oder Filter (leer = alle)")
+        query = query.strip()
+        if query.isdigit():
+            idx = int(query)
+            if 1 <= idx <= len(current):
+                return current[idx - 1].key
+            typer.echo("Ungültige Nummer.", err=True)
+            continue
+        if not query:
+            current = list(infos)
+            continue
+        matches = setup_core.filter_instances(query)
+        if len(matches) == 1:
+            return matches[0].key
+        if not matches:
+            typer.echo("Kein Treffer.", err=True)
+            current = list(infos)
+            continue
+        current = matches
+
+
 def _stdin_otp_callback() -> str:
     """TOTP-Code aus einer weiteren stdin-Zeile; EOF -> Abort."""
 
@@ -195,6 +229,9 @@ def setup(
             json_output,
             None,
         )
+
+    if tty and not instance:
+        instance = _pick_instance_interactive()
 
     def op(service: Service) -> Any:
         stored_username = setup_core.read_stored_username(
