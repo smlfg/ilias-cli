@@ -133,10 +133,12 @@ def _run(
         return service, op(service)
     except typer.Exit:
         raise
+    except AbortError as exc:
+        raise _fail(command, exc, json_output, service) from None
     except IliasError as exc:
         raise _fail(command, exc, json_output, service) from None
-    except KeyboardInterrupt:  # pragma: no cover
-        raise typer.Exit(code=130) from None
+    except KeyboardInterrupt:
+        raise _fail(command, AbortError(), json_output, service) from None
     except Exception as exc:  # noqa: BLE001 - bewusst: nie einen Traceback ausgeben
         if debuglog.enabled():
             import traceback

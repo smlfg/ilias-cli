@@ -87,17 +87,28 @@ class KeycloakLoginFlow(BaseLoginFlow):
         self._log_form("Keycloak-TOTP", totp_form)
         if otp_callback is None:
             raise AuthenticationError("TOTP-Code erforderlich.")
-        otp = otp_callback() or ""
-        if not otp.strip():
-            raise AuthenticationError("Kein TOTP-Code eingegeben.")
 
-        data = dict(totp_form.fields)
-        data["otp"] = otp
-        response = self._post(totp_form.action, data)
-
-        if parsers.is_keycloak_totp(response.text) or parsers.is_keycloak_login(
-            response.text
-        ):
-            message = parsers.extract_keycloak_error(response.text)
-            raise AuthenticationError(message or "TOTP-Code ist ungültig.")
-        return response
+        for attempt in range(1, 4):
+            otp = otp_callback() or ""
+            if not otp.strip():
+                raise AuthenticationError("Kein TOTP-Code eingegeben.")
+            data = dict(totp_form.fields)
+            data["otp"] = otp
+            response = self._post(totp_form.action, data)
+            if parsers.is_keycloak_totp(response.text) or parsers.is_keycloak_login(
+                response.text
+            ):
+                message = parsers.extract_keycloak_error(response.text)
+                if attempt == 3:
+                    raise AuthenticationError(message or "TOTP-Code ist ungültig.")
+                # neuer Code im SELBEN Flow: neues Formular der Fehlerseite parsen,
+                # das Passwort wird nie erneut gesendet
+                totp_form = parsers.parse_keycloak_totp(response.text, str(response.url))
+                if totp_form is None:
+                    raise ParserError(
+                        "Keycloak-TOTP-Formular konnte nicht erneut geparst werden."
+                    )
+                self._log_form("Keycloak-TOTP", totp_form)
+                continue
+            return response
+        raise AuthenticationError("TOTP-Code ist ungültig.")  # pragma: no cover
