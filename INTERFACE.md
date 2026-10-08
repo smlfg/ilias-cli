@@ -55,5 +55,11 @@ Die Tests starten `ilias` ohne Controlling-Terminal (`start_new_session=True`) u
 ## 7. Netzwerk-Sandbox
 Der CLI-Subprozess läuft mit `support/sitecustomize.py` (über `PYTHONPATH`): Verbindungen/DNS zu allem außer Loopback werden blockiert und protokolliert, zusätzlich zeigen `HTTP(S)_PROXY` auf einen toten Port (`NO_PROXY=127.0.0.1,localhost`). Jeder blockierte Versuch lässt den Test fehlschlagen. Implementierungen dürfen also nie auf echte Server zurückfallen, z. B. weil sie `ILIAS_CLI_CONFIG_DIR` ignorieren.
 
+## 7a. Erweiterungen (Branch `feature/saml-uni-mannheim`)
+- **Verifizierter Login:** `login` meldet Exit 0 und speichert nur, wenn (1) die Redirect-Kette nach dem letzten IdP-Schritt bei ILIAS endet, (2) das ILIAS-Session-Cookie neu/geändert ist und (3) `ilias.php?baseClass=ilDashboardGUI` nicht auf `login.php` umleitet und ein Login-Merkmal (Abmelde-Link `logout.php`) zeigt. Sonst: Auth-Fehler (1) bzw. Parser-Fehler (5). `status` prüft dasselbe Dashboard (Login-Seite/Redirect ⇒ 3, ohne Merkmal ⇒ 5).
+- **Instanzen:** `--instance <name>` an allen Befehlen bzw. `instance = "..."` in `config.toml`. Eingebaut: `hhn` (Default, `oidc-keycloak`) und `uni-mannheim` (`https://ilias.uni-mannheim.de`, `ILIAS`, `saml-shibboleth`). Overrides unter `[instances.<name>]`; Schlüssel auf oberster Ebene gelten für die Instanz aus `instance`. Sessions pro Instanz.
+- **`saml-shibboleth`:** fragt Benutzername und Passwort ab, kein TOTP. Falsches Passwort ⇒ 1.
+- **`--debug`:** loggt auf stderr nur URLs (Query-Werte geschwärzt außer `baseClass`, `cmd`, `cmdClass`, `execution`, `client_id`, `lang`), Statuscodes, Formular-IDs und Feldnamen.
+
 ## 8. Secret-Leak-Check
 `tests/acceptance/leak_check.py <secret> <pfade…>` sucht ein Geheimnis (roh, URL- und Base64-kodiert) in Dateibäumen. Die Akzeptanztests prüfen damit stdout/stderr aller Aufrufe (inkl. Tracebacks) und alle geschriebenen Dateien inkl. Keyring auf das Test-Passwort.

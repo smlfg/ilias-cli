@@ -1,0 +1,94 @@
+
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>IdP Universität Mannheim Anmeldung</title>
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <link rel="stylesheet" type="text/css" href="https://www.uni-mannheim.de/typo3conf/ext/uma_site/Resources/Public/Css/app_login.css">
+        <link rel="shortcut icon" href="https://www.uni-mannheim.de/typo3conf/ext/uma_site/Resources/Public/Images/Favicons/favicon.ico">
+        <script>this.top.location !== this.location && (this.top.location = this.location);</script>
+    </head>
+    <body>
+        <div class="login">
+            <div class="login-container">
+                <div class="login-wrap">
+                    <div class="panel panel-lg panel-login">
+                        <div class="panel-body">
+                            <div class="login-logo">
+                                <img src="https://www.uni-mannheim.de/typo3conf/ext/uma_loginscreen/Resources/Public/Images/uma_logo.png" class="login-image" alt="" />
+                            </div>
+                            <h1>IdP Universität Mannheim Anmeldung</h1>
+                            <div class="form">
+                                <div class="form-info">
+                                    <div>Anmelden bei</div>
+                                    <div><strong>ILIAS</strong></div>
+                                    <div>
+                                        <em>e-learning platform ILIAS</em>
+                                    </div>
+                                </div>
+                                <div class="login-form login-formfields">
+                                    <form id="login-form" class="fm-v clearfix" action="/idp/profile/SAML2/Redirect/SSO?execution=e1s1" method="post">
+    <input type="hidden" name="csrf_token" value="REDACTED" />
+
+                                        <div class="form-group login-username-section" id="login-username-section">
+                                            <div class="form-control-wrap">
+                                                <div class="form-control-holder">
+                                                    <input class="form-control input-login clearable login-username-field" autofocus="autofocus" id="username" name="j_username" value="" type="text" placeholder="Uni-ID (Kennung)"  accesskey="n" required="required" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group login-password-section" id="login-password-section">
+                                            <div class="form-control-wrap">
+                                                <div class="form-control-holder">
+                                                    <input type="password" id="password" name="j_password" value="" placeholder="Passwort" class="form-control input-login clearable login-password-field" accesskey="p" required="required" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <div class="checkbox-wrapper">
+                                                <input id="donotcache" name="donotcache" value="1" type="checkbox" class="regular-checkbox"><span class="checkbox-dummy"></span>
+                                            </div>
+                                            <label for="donotcache">Anmeldung nicht speichern</label>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <div class="checkbox-wrapper">
+                                                <input id="_shib_idp_revokeConsent" type="checkbox" name="_shib_idp_revokeConsent" value="true" ><span class="checkbox-dummy"></span>
+                                            </div>
+                                            <label for="_shib_idp_revokeConsent">Die zu übermittelnden Informationen anzeigen, damit ich die Weitergabe gegebenenfalls ablehnen kann.</label>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <div class="button-group">
+                                                <button class="button" id="login-submit" type="submit" name="_eventId_proceed" accesskey="l" autocomplete="off">Anmelden</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-info">
+                                            <div class="form-info-col-left">
+                                                <a href="https://www.uni-mannheim.de/it/support/" target="_blank">Hilfe benötigt?</a>
+                                            </div>
+                                            <div class="form-info-col-right">
+                                                <a href="https://admdx.uni-mannheim.de/resetpass.php?lang=de" target="_blank">Passwort vergessen?</a>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-footer">
+                            <ul class="panel-footer-menu">
+                                <li><a target="_blank" title="Portal²" href="https://portal2.uni-mannheim.de/">Portal²</a></li>
+                                <li><a target="_blank" title="ILIAS" href="https://ilias.uni-mannheim.de">ILIAS</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+     </body>
+</html>
