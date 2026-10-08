@@ -16,6 +16,7 @@ Falsches Passwort: Der IdP zeigt das Login-Formular erneut (mit Fehlermeldung).
 
 from __future__ import annotations
 
+from .. import debuglog
 from ..config import AUTH_SAML_SHIBBOLETH
 from ..errors import AuthenticationError, ParserError
 from . import parsers
@@ -54,6 +55,10 @@ class ShibbolethLoginFlow(BaseLoginFlow):
             if login_form is not None:
                 if credentials_sent:
                     message = parsers.extract_shibboleth_error(html)
+                    debuglog.debug(
+                        "IdP zeigt das Login-Formular erneut (Fehlermeldung erkannt: %s)",
+                        "ja" if message else "nein",
+                    )
                     raise AuthenticationError(message or "Benutzername oder Passwort ist falsch.")
                 self._log_form("IdP-Login", login_form)
                 self._ensure_safe_credential_target(login_form.action)

@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta property="og:type" content="website" />
+<meta property="og:title" content="Kein Zugriffsrecht" />
+<meta property="og:url" content="https://ilias.uni-mannheim.de" />
+<meta property="og:image" content="https://ilias.uni-mannheim.de/assets/images/logo/Sharing.jpg" />
+<meta property="og:image:type" content="image/jpg" />
+<meta property="og:site_title" content="ilias.uni-mannheim.de" />
+
+
+	
+
+	<title>Bei ILIAS anmelden: ILIAS</title>
+	<link rel="icon" href="./assets/images/logo/favicon.ico" type="image/x-icon">
+
+	<!-- This is the safest place for now to initialize our global namespace which is -->
+	<!-- used by several scripts included on the way to expose their business logic.  -->
+	<script type="application/javascript">var il = il ||{}; window.il = il;</script>
+
+	<style>
+		
+	</style>
+
+	
+	<link rel="stylesheet" type="text/css" href="./components/ILIAS/COPage/css/content.css?_v=10_11&vers=10-11-0-03" />
+	
+	<link rel="stylesheet" type="text/css" href="./components/ILIAS/COPage/css/syntaxhighlight.css?_v=10_11&vers=10-11-0-03" />
+	
+	<link rel="stylesheet" type="text/css" href="./assets/css/delos.css?_v=10_11&vers=10-11-0-03" />
+	
+	<link rel="stylesheet" type="text/css" href="assets/css/delos_cont.css?_v=10_11&vers=10-11-0-03" />
+	
+	<link rel="stylesheet" type="text/css" href="assets/css/tagify.css?_v=10_11&vers=10-11-0-03" />
+	
+	<link rel="stylesheet" type="text/css" href="./node_modules/jstree/dist/themes/default/style.min.css?_v=10_11&vers=10-11-0-03" />
+	
+</head>
+<body>
+	
+
+	<div class="il-page-overlay">
+		<div class="il-toast-container" aria-live="polite" ></div>
+	</div>
+
+	<div class="il-layout-page" >
+		<header>
+			<div class="header-inner">
+				<div class="il-logo">
+					<span class="hidden-xs">
+<a href="https://ilias.uni-mannheim.de/goto.php/root/1">
+
+
+
+<img src="./assets/images/logo/HeaderIcon.svg" class="img-standard" alt="Logo ILIAS - zur Einstiegsseite" />
+
+
+
+
+
+</a>
+</span>
+					<span class="visible-xs-block">
+<a href="https://ilias.uni-mannheim.de/goto.php/root/1">
+
+
+
+<img src="./assets/images/logo/HeaderIconResponsive.svg" class="img-standard" alt="Logo ILIAS - zur Einstiegsseite" />
+
+
+
+
+
+</a>
+</span>
+					<div class="il-pagetitle">
+						ILIAS
+					</div>
+				</div>
+
+				
+				<ul class="il-maincontrols-metabar" role="menubar" style="visibility: hidden" aria-label="Metaleiste" id="il_ui_fw_6ac729f6011066_40386698" ><!--if done via class/css-files, visibility is being applied too late -->
+	
+	<li role="none">
+		<button class="btn btn-bulky" id="il_ui_fw_6ac729f5f36338_99693746"  role="menuitem"  aria-haspopup="true"    ><span class="glyph"  role="img">
+<span class="glyphicon
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ glyphicon-lang
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" aria-hidden="true"></span>
+
+
+
+
+
+
+
+</span>
+<span class="bulky-label">Sprache</span></button>
+
+		
+		<div class="il-metabar-slates">
+			<div class="il-maincontrols-slate disengaged" id="il_ui_fw_6ac729f5f3ffe4_15638066">
+	<div class="il-maincontrols-slate-content" data-replace-marker="content">
+		
+		<ul>
+			
+			<li><a lang="de" hreflang="de" class="il-link link-bulky" href="https://ilias.uni-mannheim.de/login.php?client_id=ILIAS&cmd=force_login&lang=de">
+<img
+ class="icon none small"
+ src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDMyMCAzMjAiIHN0eWxlPSJlbmFibGUtYmFja2dyb3VuZDpuZXcgMCAwIDMyMCAzMjA7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+DQoJLnN0MHtjbGlwLXBhdGg6dXJsKCNTVkdJRF8wMDAwMDA0Nzc1MTgzNzAxNzcyMjkwMzQ5MDAwMDAwOTM5MjQyNjM5Mzc4Mzc4Mzg1N18pO2ZpbGw6IzRDNjU4Njt9DQo8L3N0eWxlPg0KPGc+DQoJPGc+DQoJCTxkZWZzPg0KCQkJPHJlY3QgaWQ9IlNWR0lEXzFfIiB3aWR0aD0iMzIwIiBoZWlnaHQ9IjMyMCIvPg0KCQk8L2RlZnM+DQoJCTxjbGlwUGF0aCBpZD0iU1ZHSURfMDAwMDAxNjU5Mjc3Njk0MzI5ODM0MDA2OTAwMDAwMTQyOTU5NjQxMjMxNjc4OTQ5MjBfIj4NCgkJCTx1c2UgeGxpbms6aHJlZj0iI1NWR0lEXzFfIiAgc3R5bGU9Im92ZXJmbG93OnZpc2libGU7Ii8+DQoJCTwvY2xpcFBhdGg+DQoJCTxwYXRoIHN0eWxlPSJjbGlwLXBhdGg6dXJsKCNTVkdJRF8wMDAwMDE2NTkyNzc2OTQzMjk4MzQwMDY5MDAwMDAxNDI5NTk2NDEyMzE2Nzg5NDkyMF8pO2ZpbGw6IzRDNjU4NjsiIGQ9Ik05MCw1MEg2MA0KCQkJYy01LjUsMC0xMCw0LjUtMTAsMTB2MjAwYzAsNS41LDQuNSwxMCwxMCwxMGgzMHYtMTVINjVWNjVoMjVWNTB6IE0yNzAsMjYwVjYwYzAtNS41LTQuNS0xMC0xMC0xMGgtMzB2MTVoMjV2MTkwaC0yNXYxNWgzMA0KCQkJQzI2NS41LDI3MCwyNzAsMjY1LjUsMjcwLDI2MCIvPg0KCTwvZz4NCjwvZz4NCjx0ZXh0CiAgIHN0eWxlPSIKICAgICAgZm9udC1zdHlsZTpub3JtYWw7CiAgICAgIGZvbnQtd2VpZ2h0Om5vcm1hbDsKICAgICAgZm9udC1zaXplOjhyZW07CiAgICAgIGZvbnQtZmFtaWx5OnNhbnMtc2VyaWY7CiAgICAgIGxldHRlci1zcGFjaW5nOjBweDsKICAgICAgZmlsbDojMDAwOwogICAgICBmaWxsLW9wYWNpdHk6MTsKICAgICIKICAgIHg9IjUwJSIKICAgIHk9IjU1JSIKICAgIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiCiAgICB0ZXh0LWFuY2hvcj0ibWlkZGxlIgogID5kZTwvdGV4dD48L3N2Zz4=" alt=""
+
+ data-abbreviation="de"
+/>
+<span class="bulky-label">Deutsch</span></a></li>
+			
+			<li><a lang="en" hreflang="en" class="il-link link-bulky" href="https://ilias.uni-mannheim.de/login.php?client_id=ILIAS&cmd=force_login&lang=en">
+<img
+ class="icon none small"
+ src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDMyMCAzMjAiIHN0eWxlPSJlbmFibGUtYmFja2dyb3VuZDpuZXcgMCAwIDMyMCAzMjA7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+DQoJLnN0MHtjbGlwLXBhdGg6dXJsKCNTVkdJRF8wMDAwMDA0Nzc1MTgzNzAxNzcyMjkwMzQ5MDAwMDAwOTM5MjQyNjM5Mzc4Mzc4Mzg1N18pO2ZpbGw6IzRDNjU4Njt9DQo8L3N0eWxlPg0KPGc+DQoJPGc+DQoJCTxkZWZzPg0KCQkJPHJlY3QgaWQ9IlNWR0lEXzFfIiB3aWR0aD0iMzIwIiBoZWlnaHQ9IjMyMCIvPg0KCQk8L2RlZnM+DQoJCTxjbGlwUGF0aCBpZD0iU1ZHSURfMDAwMDAxNjU5Mjc3Njk0MzI5ODM0MDA2OTAwMDAwMTQyOTU5NjQxMjMxNjc4OTQ5MjBfIj4NCgkJCTx1c2UgeGxpbms6aHJlZj0iI1NWR0lEXzFfIiAgc3R5bGU9Im92ZXJmbG93OnZpc2libGU7Ii8+DQoJCTwvY2xpcFBhdGg+DQoJCTxwYXRoIHN0eWxlPSJjbGlwLXBhdGg6dXJsKCNTVkdJRF8wMDAwMDE2NTkyNzc2OTQzMjk4MzQwMDY5MDAwMDAxNDI5NTk2NDEyMzE2Nzg5NDkyMF8pO2ZpbGw6IzRDNjU4NjsiIGQ9Ik05MCw1MEg2MA0KCQkJYy01LjUsMC0xMCw0LjUtMTAsMTB2MjAwYzAsNS41LDQuNSwxMCwxMCwxMGgzMHYtMTVINjVWNjVoMjVWNTB6IE0yNzAsMjYwVjYwYzAtNS41LTQuNS0xMC0xMC0xMGgtMzB2MTVoMjV2MTkwaC0yNXYxNWgzMA0KCQkJQzI2NS41LDI3MCwyNzAsMjY1LjUsMjcwLDI2MCIvPg0KCTwvZz4NCjwvZz4NCjx0ZXh0CiAgIHN0eWxlPSIKICAgICAgZm9udC1zdHlsZTpub3JtYWw7CiAgICAgIGZvbnQtd2VpZ2h0Om5vcm1hbDsKICAgICAgZm9udC1zaXplOjhyZW07CiAgICAgIGZvbnQtZmFtaWx5OnNhbnMtc2VyaWY7CiAgICAgIGxldHRlci1zcGFjaW5nOjBweDsKICAgICAgZmlsbDojMDAwOwogICAgICBmaWxsLW9wYWNpdHk6MTsKICAgICIKICAgIHg9IjUwJSIKICAgIHk9IjU1JSIKICAgIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiCiAgICB0ZXh0LWFuY2hvcj0ibWlkZGxlIgogID5lbjwvdGV4dD48L3N2Zz4=" alt=""
+
+ data-abbreviation="en"
+/>
+<span class="bulky-label">English</span></a></li>
+			
+		</ul>
+		
+		
+	</div>
+</div>
+
+		</div>
+		
+	</li>
+	
+	<li role="none">
+		<button class="btn btn-bulky" id="il_ui_fw_6ac729f60027b1_00114672"  role="menuitem"  aria-haspopup="true"    ><span class="glyph"  role="img">
+<span class="glyphicon
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ glyphicon-search
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" aria-hidden="true"></span>
+
+
+
+
+
+
+
+</span>
+<span class="bulky-label">Suche</span></button>
+
+		
+		<div class="il-metabar-slates">
+			<div class="il-maincontrols-slate disengaged" id="il_ui_fw_6ac729f6005241_57765642">
+	<div class="il-maincontrols-slate-content" data-replace-marker="content">
+		
+		
+		<form class="" role="search" id="mm_search_form" action="ilias.php?baseClass=ilsearchcontrollergui&cmdNode=10b:j4&cmdClass=illucenesearchgui&cmd=remoteSearch" method="post" target="_top">
+	<div class="input-group">
+		<label class="sr-only" for="main_menu_search">Sucheingabefeld</label>
+		<input id="main_menu_search" class="form-control" type="text" name="queryString" autocomplete="off">
+		<span class="input-group-btn">
+			<input type="submit" class="btn btn-default" value="Suche" />
+		</span>
+	</div>
+	
+	<div id="mm_search_menu_ac"></div>
+</form>
+
+		
+	</div>
+</div>
+
+		</div>
+		
+	</li>
+	
+	<li role="none">
+		<button class="btn btn-bulky" id="il_ui_fw_6ac729f600e692_36842094"  role="menuitem"  aria-haspopup="true"    ><span class="glyph"  role="img">
+<span class="glyphicon
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ glyphicon-option-vertical
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" aria-hidden="true"></span>
+
+
+<span class="il-counter">
+	
+	<span class="badge badge-notify il-counter-status" style="display:none">0</span>
+	
+	
+</span>
+
+
+
+<span class="il-counter">
+	
+	
+	<span class="badge badge-notify il-counter-novelty" style="display:none">0</span>
+	
+</span>
+
+
+
+
+</span>
+<span class="bulky-label">Mehr zeigen</span></button>
+
+		
+		<div class="il-metabar-slates">
+			<div class="il-maincontrols-slate disengaged" id="il_ui_fw_6ac729f6010436_75911127" role="menu">
+	<div class="il-maincontrols-slate-content" data-replace-marker="content">
+		
+		
+	</div>
+</div>
+
+		</div>
+		
+	</li>
+	
+</ul>
+
+			</div>
+		</header>
+
+		<div class="il-system-infos">
+			
+		</div>
+
+		<div class="nav il-maincontrols">
+			<div class="il-maincontrols-mainbar" id="il_ui_fw_6ac729f6028d57_30715586">
+	<nav class="il-mainbar" aria-label="Hauptnavigationsleiste">
+		
+
+		<div class="il-mainbar-triggers">
+			<ul class="il-mainbar-entries" role="menubar" style="visibility: hidden"><!--if done via class/css-files, visibility is being applied too late -->
+				
+				<li role="none"><a class="il-link link-bulky" href="https://portal2.uni-mannheim.de" target="_blank" rel="noopener" id="il_ui_fw_6ac729f6018e75_09159800" role="menuitem">
+<img
+ class="icon P small disabled"
+ src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDMyMCAzMjAiIHN0eWxlPSJlbmFibGUtYmFja2dyb3VuZDpuZXcgMCAwIDMyMCAzMjA7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+DQoJLnN0MHtjbGlwLXBhdGg6dXJsKCNTVkdJRF8wMDAwMDA0Nzc1MTgzNzAxNzcyMjkwMzQ5MDAwMDAwOTM5MjQyNjM5Mzc4Mzc4Mzg1N18pO2ZpbGw6IzRDNjU4Njt9DQo8L3N0eWxlPg0KPGc+DQoJPGc+DQoJCTxkZWZzPg0KCQkJPHJlY3QgaWQ9IlNWR0lEXzFfIiB3aWR0aD0iMzIwIiBoZWlnaHQ9IjMyMCIvPg0KCQk8L2RlZnM+DQoJCTxjbGlwUGF0aCBpZD0iU1ZHSURfMDAwMDAxNjU5Mjc3Njk0MzI5ODM0MDA2OTAwMDAwMTQyOTU5NjQxMjMxNjc4OTQ5MjBfIj4NCgkJCTx1c2UgeGxpbms6aHJlZj0iI1NWR0lEXzFfIiAgc3R5bGU9Im92ZXJmbG93OnZpc2libGU7Ii8+DQoJCTwvY2xpcFBhdGg+DQoJCTxwYXRoIHN0eWxlPSJjbGlwLXBhdGg6dXJsKCNTVkdJRF8wMDAwMDE2NTkyNzc2OTQzMjk4MzQwMDY5MDAwMDAxNDI5NTk2NDEyMzE2Nzg5NDkyMF8pO2ZpbGw6IzRDNjU4NjsiIGQ9Ik05MCw1MEg2MA0KCQkJYy01LjUsMC0xMCw0LjUtMTAsMTB2MjAwYzAsNS41LDQuNSwxMCwxMCwxMGgzMHYtMTVINjVWNjVoMjVWNTB6IE0yNzAsMjYwVjYwYzAtNS41LTQuNS0xMC0xMC0xMGgtMzB2MTVoMjV2MTkwaC0yNXYxNWgzMA0KCQkJQzI2NS41LDI3MCwyNzAsMjY1LjUsMjcwLDI2MCIvPg0KCTwvZz4NCjwvZz4NCjx0ZXh0CiAgIHN0eWxlPSIKICAgICAgZm9udC1zdHlsZTpub3JtYWw7CiAgICAgIGZvbnQtd2VpZ2h0Om5vcm1hbDsKICAgICAgZm9udC1zaXplOjhyZW07CiAgICAgIGZvbnQtZmFtaWx5OnNhbnMtc2VyaWY7CiAgICAgIGxldHRlci1zcGFjaW5nOjBweDsKICAgICAgZmlsbDojMDAwOwogICAgICBmaWxsLW9wYWNpdHk6MTsKICAgICIKICAgIHg9IjUwJSIKICAgIHk9IjU1JSIKICAgIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiCiAgICB0ZXh0LWFuY2hvcj0ibWlkZGxlIgogID5QPC90ZXh0Pjwvc3ZnPg==" alt=""
+ aria-disabled="true"
+ data-abbreviation="P"
+/>
+<span class="bulky-label">Portal²</span></a></li>
+				
+				<li role="none"><a class="il-link link-bulky" href="https://www.uni-mannheim.de/it/anleitungen/portal2" target="_blank" rel="noopener" id="il_ui_fw_6ac729f601dc97_61192717" role="menuitem">
+<img
+ class="icon H small disabled"
+ src="data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDMyMCAzMjAiIHN0eWxlPSJlbmFibGUtYmFja2dyb3VuZDpuZXcgMCAwIDMyMCAzMjA7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+DQoJLnN0MHtjbGlwLXBhdGg6dXJsKCNTVkdJRF8wMDAwMDA0Nzc1MTgzNzAxNzcyMjkwMzQ5MDAwMDAwOTM5MjQyNjM5Mzc4Mzc4Mzg1N18pO2ZpbGw6IzRDNjU4Njt9DQo8L3N0eWxlPg0KPGc+DQoJPGc+DQoJCTxkZWZzPg0KCQkJPHJlY3QgaWQ9IlNWR0lEXzFfIiB3aWR0aD0iMzIwIiBoZWlnaHQ9IjMyMCIvPg0KCQk8L2RlZnM+DQoJCTxjbGlwUGF0aCBpZD0iU1ZHSURfMDAwMDAxNjU5Mjc3Njk0MzI5ODM0MDA2OTAwMDAwMTQyOTU5NjQxMjMxNjc4OTQ5MjBfIj4NCgkJCTx1c2UgeGxpbms6aHJlZj0iI1NWR0lEXzFfIiAgc3R5bGU9Im92ZXJmbG93OnZpc2libGU7Ii8+DQoJCTwvY2xpcFBhdGg+DQoJCTxwYXRoIHN0eWxlPSJjbGlwLXBhdGg6dXJsKCNTVkdJRF8wMDAwMDE2NTkyNzc2OTQzMjk4MzQwMDY5MDAwMDAxNDI5NTk2NDEyMzE2Nzg5NDkyMF8pO2ZpbGw6IzRDNjU4NjsiIGQ9Ik05MCw1MEg2MA0KCQkJYy01LjUsMC0xMCw0LjUtMTAsMTB2MjAwYzAsNS41LDQuNSwxMCwxMCwxMGgzMHYtMTVINjVWNjVoMjVWNTB6IE0yNzAsMjYwVjYwYzAtNS41LTQuNS0xMC0xMC0xMGgtMzB2MTVoMjV2MTkwaC0yNXYxNWgzMA0KCQkJQzI2NS41LDI3MCwyNzAsMjY1LjUsMjcwLDI2MCIvPg0KCTwvZz4NCjwvZz4NCjx0ZXh0CiAgIHN0eWxlPSIKICAgICAgZm9udC1zdHlsZTpub3JtYWw7CiAgICAgIGZvbnQtd2VpZ2h0Om5vcm1hbDsKICAgICAgZm9udC1zaXplOjhyZW07CiAgICAgIGZvbnQtZmFtaWx5OnNhbnMtc2VyaWY7CiAgICAgIGxldHRlci1zcGFjaW5nOjBweDsKICAgICAgZmlsbDojMDAwOwogICAgICBmaWxsLW9wYWNpdHk6MTsKICAgICIKICAgIHg9IjUwJSIKICAgIHk9IjU1JSIKICAgIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiCiAgICB0ZXh0LWFuY2hvcj0ibWlkZGxlIgogID5IPC90ZXh0Pjwvc3ZnPg==" alt=""
+ aria-disabled="true"
+ data-abbreviation="H"
+/>
+<span class="bulky-label">Hilfe</span></a></li>
+				
+				<li role="none"><button class="btn btn-bulky" id="il_ui_fw_6ac729f6023408_64478526"  role="menuitem"     ><span class="glyph"  role="img">
+<span class="glyphicon
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ glyphicon-option-horizontal
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" aria-hidden="true"></span>
+
+
+
+
+
+
+
+</span>
+<span class="bulky-label">Mehr</span></button>
+</li>
+				
+			</ul>
+		</div>
+	</nav>
+
+	<div class="il-mainbar-slates">
+		<div class="il-mainbar-tools-entries">
+			<ul class="il-mainbar-tools-entries-bg" role="menubar">
+				
+			</ul>
+			
+		</div>
+		
+		<div class="il-maincontrols-slate disengaged" id="il_ui_fw_6ac729f6025369_91307721" data-depth-level="1" role="menu">
+	<div class="il-maincontrols-slate-content" data-replace-marker="content">
+		
+		
+	</div>
+</div>
+
+		
+
+		<div class="il-mainbar-close-slates">
+			<button class="btn btn-bulky" id="il_ui_fw_6ac729f6028561_24563562"      ><span class="glyph"  role="img">
+<span class="glyphicon
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ glyphicon-triangle-left
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" aria-hidden="true"></span>
+
+
+
+
+
+
+
+</span>
+<span class="bulky-label">Schließen</span></button>
+
+		</div>
+
+	</div>
+
+</div>
+
+		</div>
+
+		<!-- html5 main-tag is not supported in IE / div is needed -->
+		<main class="il-layout-page-content">
+			
+
+			
+
+
+<div id="mainspacekeeper" class="container-fluid ">
+	<div class="row" style="position: relative;">
+		
+		<div id="fixed_content" class=" ilContentFixed" >
+			<div id="mainscrolldiv" >
+				
+
+				
+
+				
+				
+
+				
+
+				<div class="ilClearFloat"></div>
+
+				
+				<div class="ilTabsContentOuter"><div class="clearfix"></div>
+				
+				<div class="il_after_tabs_spacing"></div>
+				
+				
+				
+				
+				
+
+					<div>
+						
+					</div>
+
+
+					<div id="ilContentContainer">
+						<div class="row">
+
+							<div id="il_center_col" class="col-sm-12">
+								
+								
+								<div class="ilMessageBox">
+	
+	
+</div>
+
+
+
+<div>
+	
+</div>
+<div class="ilStartupSection">
+	
+	
+	<div class="c-form c-form--horizontal">
+	<div class="c-input">
+		<h2 class="ilHeader">Bei ILIAS via SAML-Authentifizierung anmelden</h2>
+		<div class="c-field-section">
+			<p>Um sich über SAML anzumelden, klicken Sie bitte den 'Anmelde'-Button.</p>
+			<div class="c-form__footer">
+				<div class="c-form__actions">
+					<a href="./saml.php" class="submit btn btn-default preventDoubleSubmission">Anmelden</a>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+	
+	
+	
+	
+	
+	<div class="ilStartupSection">
+		
+	</div>
+	
+	
+	<div class="ilStartupSection">
+		
+		
+	</div>
+	
+</div>
+								
+								
+								
+								
+							</div>
+
+							
+
+							
+						</div>
+					</div>
+
+					
+					
+				
+				</div>
+
+			</div>
+		</div>
+	</div>
+</div>
+
+
+
+
+
+
+
+			<footer class="c-maincontrols c-maincontrols__footer">
+	
+	<section class="c-maincontrols__footer-grid c-maincontrols__footer-grid--md" data-section="permanent-link" aria-label="Footer Permanent Link" tabindex="0">
+		
+		<div class="c-maincontrols__footer-grid__item text-left">
+			
+
+			<div class="c-tooltip__container c-tooltip--top" aria-live="polite">
+    <button class="btn btn-default"  data-action="" id="il_ui_fw_6ac729f602f0c3_17471009">Link in Zwischenablage kopieren</button>
+
+    <div class="c-tooltip c-tooltip--hidden" role="tooltip">
+        Link zu dieser Seite wurde in die Zwischenablage kopiert.
+    </div>
+</div>
+
+		</div>
+		
+
+		
+	</section>
+	
+	<section class="c-maincontrols__footer-grid c-maincontrols__footer-grid--sm" data-section="link-groups" aria-label="Footer Link-Gruppen" tabindex="0">
+		
+		<div class="c-maincontrols__footer-grid__item text-left">
+			
+			<strong>Rechtliche Informationen</strong>
+			
+
+			<ul>
+	
+	<li><a href="https://ilias.uni-mannheim.de/goto.php/impr/0">Impressum</a></li>
+	
+</ul>
+		</div>
+		
+
+		
+	</section>
+	
+	<section class="c-maincontrols__footer-grid c-maincontrols__footer-grid--md" data-section="texts" aria-label="Footer Texte" tabindex="0">
+		
+		<div class="c-maincontrols__footer-grid__item text-left">
+			
+
+			powered by ILIAS (v10.11 2026-09-03)
+		</div>
+		
+
+		
+	</section>
+	
+</footer>
+
+		</main>
+	</div>
+
+
+<script src="assets/js/jquery.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="./Customizing/global/plugins/Services/UIComponent/UserInterfaceHook/UserTakeOver/js/dist/main.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/Basic.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/GS.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/core.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/tagify.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/tagInput.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/dropzone.min.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/dropzone.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/input.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/file.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/input.factory.min.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/stdpage.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/toast.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/mainbar.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/maincontrols.min.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/system_info.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/footer.min.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/button.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="./assets/js/moment-with-locales.min.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/counter.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/image.min.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/modal-confirmation.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/SearchMainMenu.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/repository.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/Explorer2.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="./node_modules/jstree/dist/jstree.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="./Customizing/global/plugins/Services/UIComponent/UserInterfaceHook/UserTakeOver/node_modules/@varvet/tiny-autocomplete/src/tiny-autocomplete.js?_v=10_11&vers=10-11-0-03"></script>
+
+<script src="assets/js/legacyAutocomplete.js?_v=10_11&vers=10-11-0-03"></script>
+
+
+
+<script>
+	
+		il.Util.addOnLoad(function() {
+			try { il.Plugins.UserTakeOver.init('.uto-search') } catch (e) { console.log(e); }
+try { il.GS.Client.init('{"hashing":true,"logging":false}'); } catch (e) { console.log(e); }
+try { il.repository.ui.init();
+il.repository.core.init('https://ilias.uni-mannheim.de') } catch (e) { console.log(e); }
+try {  } catch (e) { console.log(e); }
+try { $('#il_ui_fw_6ac729f5f36338_99693746').on('click', function(event) {
+						$(this).trigger('il_signal_6ac729f5d4f796_48811654',
+							{
+								'id' : 'il_signal_6ac729f5d4f796_48811654', 'event' : 'click',
+								'triggerer' : $(this),
+								'options' : JSON.parse('[]')
+							}
+						);
+						return false;
+					});$('#il_ui_fw_6ac729f5f36338_99693746').on('click', function(event) {
+						$(this).trigger('il_signal_6ac729f5d51187_35336790',
+							{
+								'id' : 'il_signal_6ac729f5d51187_35336790', 'event' : 'click',
+								'triggerer' : $(this),
+								'options' : JSON.parse('[]')
+							}
+						);
+						return false;
+					}); } catch (e) { console.log(e); }
+try { $(document).on('il_signal_6ac729f5d51187_35336790', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('toggle', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f5f3ffe4_15638066'
+                    ); 
+                    return false;});$(document).on('il_signal_6ac729f5d511e4_40922714', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('engage', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f5f3ffe4_15638066'
+                    ); 
+                    return false;});$(document).on('il_signal_6ac729f5d51221_97836235', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('replace', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f5f3ffe4_15638066'
+                    ); 
+                    return false;}); } catch (e) { console.log(e); }
+try { $('#il_ui_fw_6ac729f60027b1_00114672').on('click', function(event) {
+						$(this).trigger('il_signal_6ac729f5d4f796_48811654',
+							{
+								'id' : 'il_signal_6ac729f5d4f796_48811654', 'event' : 'click',
+								'triggerer' : $(this),
+								'options' : JSON.parse('[]')
+							}
+						);
+						return false;
+					});$('#il_ui_fw_6ac729f60027b1_00114672').on('click', function(event) {
+						$(this).trigger('il_signal_6ac729f5d536a4_54607056',
+							{
+								'id' : 'il_signal_6ac729f5d536a4_54607056', 'event' : 'click',
+								'triggerer' : $(this),
+								'options' : JSON.parse('[]')
+							}
+						);
+						return false;
+					}); } catch (e) { console.log(e); }
+try { il.SearchMainMenu.init(
+  "ilias.php?baseClass=ilsearchcontrollergui&cmd=autoComplete&cmdMode=asynch",
+  "ilias.php?baseClass=ilsearchcontrollergui&cmdNode=10b:j4&cmdClass=illucenesearchgui&cmd=remoteSearch",
+  "ilias.php?baseClass=ilsearchcontrollergui&cmdNode=10b:j5&cmdClass=illuceneusersearchgui&cmd=remoteSearch"
+)
+ } catch (e) { console.log(e); }
+try { $(document).on('il_signal_6ac729f5d536a4_54607056', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('toggle', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6005241_57765642'
+                    ); 
+                    return false;});$(document).on('il_signal_6ac729f5d53719_58500650', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('engage', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6005241_57765642'
+                    ); 
+                    return false;});$(document).on('il_signal_6ac729f5d53744_54481579', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('replace', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6005241_57765642'
+                    ); 
+                    return false;}); } catch (e) { console.log(e); }
+try { $('#il_ui_fw_6ac729f600e692_36842094').on('click', function(event) {
+						$(this).trigger('il_signal_6ac729f5d4f796_48811654',
+							{
+								'id' : 'il_signal_6ac729f5d4f796_48811654', 'event' : 'click',
+								'triggerer' : $(this),
+								'options' : JSON.parse('[]')
+							}
+						);
+						return false;
+					});$('#il_ui_fw_6ac729f600e692_36842094').on('click', function(event) {
+						$(this).trigger('il_signal_6ac729f5f2a987_74345072',
+							{
+								'id' : 'il_signal_6ac729f5f2a987_74345072', 'event' : 'click',
+								'triggerer' : $(this),
+								'options' : JSON.parse('[]')
+							}
+						);
+						return false;
+					}); } catch (e) { console.log(e); }
+try { $(document).on('il_signal_6ac729f5f2a987_74345072', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('toggle', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6010436_75911127'
+                    ); 
+                    return false;});$(document).on('il_signal_6ac729f5f2aa10_13259187', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('engage', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6010436_75911127'
+                    ); 
+                    return false;});$(document).on('il_signal_6ac729f5f2aa55_31749110', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('replace', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6010436_75911127'
+                    ); 
+                    return false;}); } catch (e) { console.log(e); }
+try { 
+					il.UI.maincontrols.metabar.init('il_ui_fw_6ac729f6011066_40386698');
+                    il.UI.maincontrols.metabar.get('il_ui_fw_6ac729f6011066_40386698').registerSignals(
+						'il_signal_6ac729f5d4f796_48811654',
+						'il_signal_6ac729f5d4fd53_22053728',
+					);
+                    il.UI.maincontrols.metabar.get('il_ui_fw_6ac729f6011066_40386698').init();
+                    window.addEventListener(
+                        'resize',
+                        ()=>{il.UI.maincontrols.metabar.get('il_ui_fw_6ac729f6011066_40386698').init()}
+                    );
+				 } catch (e) { console.log(e); }
+try { 
+                        il.UI.maincontrols.mainbar.addPartIdAndEntry('0:0', 'triggerer', 'il_ui_fw_6ac729f6018e75_09159800', false);
+                        il.UI.maincontrols.mainbar.addMapping('494c4941535c4d61696e4d656e755c50726f76696465725c437573746f6d4d61696e42617250726f76696465727c35643330366332346535623663','0:0');
+                     } catch (e) { console.log(e); }
+try { 
+                        il.UI.maincontrols.mainbar.addPartIdAndEntry('0:1', 'triggerer', 'il_ui_fw_6ac729f601dc97_61192717', false);
+                        il.UI.maincontrols.mainbar.addMapping('494c4941535c4d61696e4d656e755c50726f76696465725c437573746f6d4d61696e42617250726f76696465727c35643330366334336131346437','0:1');
+                     } catch (e) { console.log(e); }
+try { 
+                        il.UI.maincontrols.mainbar.addPartIdAndEntry('0:2', 'triggerer', 'il_ui_fw_6ac729f6023408_64478526', false);
+                        il.UI.maincontrols.mainbar.addMapping('_mb_more_entry','0:2');
+                    
+$('#il_ui_fw_6ac729f6023408_64478526').on('click', function(event) {
+						$(this).trigger('il_signal_6ac729f601e7d5_40003070',
+							{
+								'id' : 'il_signal_6ac729f601e7d5_40003070', 'event' : 'click',
+								'triggerer' : $(this),
+								'options' : JSON.parse('{"entry_id":"0:2","action":"trigger"}')
+							}
+						);
+						return false;
+					}); } catch (e) { console.log(e); }
+try { $(document).on('il_signal_6ac729f6013314_07970267', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('toggle', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6025369_91307721'
+                    ); 
+                    return false;});$(document).on('il_signal_6ac729f60133c0_84929519', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('engage', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6025369_91307721'
+                    ); 
+                    return false;});$(document).on('il_signal_6ac729f6013419_01307789', function(event, signalData) { 
+                        il.UI.maincontrols.slate.onSignal('replace', 
+                        event, 
+                        signalData, 
+                        'il_ui_fw_6ac729f6025369_91307721'
+                    ); 
+                    return false;});il.UI.maincontrols.mainbar.addPartIdAndEntry('0:2', 'slate', 'il_ui_fw_6ac729f6025369_91307721'); } catch (e) { console.log(e); }
+try { $('#il_ui_fw_6ac729f6028561_24563562').on('click', function(event) {
+						$(this).trigger('il_signal_6ac729f5e888a9_72606078',
+							{
+								'id' : 'il_signal_6ac729f5e888a9_72606078', 'event' : 'click',
+								'triggerer' : $(this),
+								'options' : JSON.parse('{"action":"disengage_all"}')
+							}
+						);
+						return false;
+					}); } catch (e) { console.log(e); }
+try { il.Language.setLangVar('close', "Schlie\u00dfen"); } catch (e) { console.log(e); }
+try { il.UI.maincontrols.mainbar.addTriggerSignal('il_signal_6ac729f5e888a9_72606078');il.UI.maincontrols.mainbar.addTriggerSignal('il_signal_6ac729f5e888f5_54890379');il.UI.maincontrols.mainbar.addTriggerSignal('il_signal_6ac729f601e7d5_40003070');
+                    window.addEventListener('resize', il.UI.maincontrols.mainbar.adjustToScreenSize);
+                    il.UI.maincontrols.mainbar.init('');
+                 } catch (e) { console.log(e); }
+try {  } catch (e) { console.log(e); }
+try { document.getElementById("il_ui_fw_6ac729f602f0c3_17471009").addEventListener('click', e => il.Footer.permalink.copyText("https:\/\/ilias.uni-mannheim.de\/goto.php\/auth\/login")
+                        .then(() => il.Footer.permalink.showTooltip(e.target.nextElementSibling, 5000))); } catch (e) { console.log(e); }
+		});
+	
+</script>
+
+
+</body>
+</html>

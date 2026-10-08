@@ -1,8 +1,12 @@
-"""Pytest-Fixtures: Temp-Konfigurationsordner und In-Memory-Keyring."""
+"""Pytest-Fixtures: Temp-Konfigurationsordner, In-Memory-Keyring, Netzwerk-Sperre."""
 
 from __future__ import annotations
 
+import socket
+
 import pytest
+
+_LOOPBACK = {"localhost", "127.0.0.1", "::1"}
 
 
 class MemoryKeyring:
@@ -22,6 +26,28 @@ class MemoryKeyring:
         if key not in self.store:
             raise KeyError(username)
         del self.store[key]
+
+
+@pytest.fixture(autouse=True)
+def block_external_network(monkeypatch):
+    """Nur Loopback erlaubt; HTTP wird hier ohnehin per respx gemockt."""
+
+    original_getaddrinfo = socket.getaddrinfo
+    original_connect = socket.socket.connect
+
+    def guarded_getaddrinfo(host, *args, **kwargs):
+        name = host.decode() if isinstance(host, bytes) else str(host)
+        if name not in _LOOPBACK and not name.startswith("127."):
+            raise AssertionError(f"Netzwerkzugriff auf {name!r} in Unit-Tests verboten")
+        return original_getaddrinfo(host, *args, **kwargs)
+
+    def guarded_connect(self, address):
+        if isinstance(address, tuple) and str(address[0]) not in _LOOPBACK and not str(address[0]).startswith("127."):
+            raise AssertionError(f"Verbindung zu {address[0]!r} in Unit-Tests verboten")
+        return original_connect(self, address)
+
+    monkeypatch.setattr(socket, "getaddrinfo", guarded_getaddrinfo)
+    monkeypatch.setattr(socket.socket, "connect", guarded_connect)
 
 
 @pytest.fixture

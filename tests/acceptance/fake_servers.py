@@ -60,7 +60,10 @@ class FakeWorld:
     # Schalter für Fehlerszenarien
     keycloak_auth_mode: str = "normal"  # normal | garbage
     keycloak_post_mode: str = "normal"  # normal | error502
-    dashboard_mode: str = "normal"  # normal | error503
+    dashboard_mode: str = "normal"  # normal | error503 | no_marker | login_inline
+    # Rückkehr zu ILIAS nach Keycloak: normal | no_new_session (kein neues PHPSESSID)
+    # | session_not_valid (neues PHPSESSID, das ILIAS aber nicht als eingeloggt kennt)
+    callback_mode: str = "normal"
     requests: list[RecordedRequest] = field(default_factory=list)
     valid_sessions: set[str] = field(default_factory=set)
     issued_session_ids: set[str] = field(default_factory=set)
@@ -218,6 +221,11 @@ GARBAGE_HTML = """<!DOCTYPE html><html><head><title>Wartungsarbeiten</title></he
 <body><h1>Wartungsarbeiten</h1><p>Der Anmeldedienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.</p>
 <div class="maintenance"><img src="/static/hhn-logo.svg" alt="HHN"></div></body></html>"""
 
+NO_MARKER_HTML = """<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>ILIAS Hochschule Heilbronn</title></head>
+<body class="std"><div class="il-layout-page"><main class="il-layout-page-content">
+<div class="alert alert-info" role="status">Die Installation befindet sich im Wartungsmodus.</div>
+</main></div></body></html>"""
+
 
 def ilias_dashboard(world: FakeWorld) -> str:
     p = world.ilias_prefix
@@ -365,9 +373,12 @@ def _make_handler(world: FakeWorld, server_name: str):
                     ok = world.codes.pop(code, None) == state and state in world.ilias_states
                 if not ok:
                     return self._redirect(f"{world.ilias_base}/login.php?client_id={world.ilias_client_id}&cmd=force_login&lang=de")
+                if world.callback_mode == "no_new_session":
+                    return self._redirect(f"{world.ilias_base}/ilias.php?baseClass=ilDashboardGUI&cmd=jumpToSelectedItems")
                 new_sid = "auth" + secrets.token_hex(16)
                 with world.lock:
-                    world.valid_sessions.add(new_sid)
+                    if world.callback_mode != "session_not_valid":
+                        world.valid_sessions.add(new_sid)
                     world.issued_session_ids.add(new_sid)
                 return self._redirect(
                     f"{world.ilias_base}/ilias.php?baseClass=ilDashboardGUI&cmd=jumpToSelectedItems",
@@ -385,6 +396,10 @@ def _make_handler(world: FakeWorld, server_name: str):
                     )
                 if world.dashboard_mode == "error503":
                     return self._send(503, "<h1>503 Service Temporarily Unavailable</h1><hr><center>nginx</center>")
+                if world.dashboard_mode == "no_marker":
+                    return self._send(200, NO_MARKER_HTML)
+                if world.dashboard_mode == "login_inline":
+                    return self._send(200, ilias_login_page(world))
                 return self._send(200, ilias_dashboard(world))
 
             if path == "/login.php":

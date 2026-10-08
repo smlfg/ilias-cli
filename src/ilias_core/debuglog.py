@@ -19,6 +19,9 @@ logger.addHandler(logging.NullHandler())
 logger.propagate = False
 
 REDACTED = "…"
+# Reine Routing-Parameter von ILIAS/Shibboleth; alle anderen Query-Werte
+# (code, state, SAMLRequest, session_code, …) werden geschwärzt.
+SAFE_QUERY_KEYS = frozenset({"baseClass", "cmd", "cmdClass", "execution", "client_id", "lang"})
 
 
 def enable(stream=None) -> None:  # noqa: ANN001 - TextIO
@@ -35,17 +38,24 @@ def enabled() -> bool:
 
 
 def redact_url(url: str | httpx.URL) -> str:
-    """``https://host/pfad?code=…&state=…``: Werte und Fragment entfernt."""
+    """``https://host/pfad?code=…&state=…``: Werte (außer Routing) und Fragment entfernt."""
 
     parts = urlsplit(str(url))
     netloc = parts.hostname or ""
     if parts.port:
         netloc = f"{netloc}:{parts.port}"
     base = f"{parts.scheme}://{netloc}{parts.path}" if parts.scheme else parts.path
-    keys = [key for key, _ in parse_qsl(parts.query, keep_blank_values=True)]
-    if keys:
-        base += "?" + "&".join(f"{key}={REDACTED}" for key in keys)
+    pairs = parse_qsl(parts.query, keep_blank_values=True)
+    if pairs:
+        base += "?" + "&".join(
+            f"{key}={_safe_value(value) if key in SAFE_QUERY_KEYS else REDACTED}"
+            for key, value in pairs
+        )
     return base
+
+
+def _safe_value(value: str) -> str:
+    return value if value.replace("_", "").replace("-", "").isalnum() and len(value) <= 40 else REDACTED
 
 
 def debug(message: str, *args: object) -> None:
