@@ -52,5 +52,8 @@ Die Tests starten `ilias` ohne Controlling-Terminal (`start_new_session=True`) u
 - Eigener User-Agent `ilias-cli/<version>`.
 - Keycloak liegt in den Tests auf einem anderen Host (`localhost`) als ILIAS (`127.0.0.1`), wie in echt (`login.hs-heilbronn.de` vs. `ilias.hs-heilbronn.de`).
 
-## 7. Secret-Leak-Check
+## 7. Netzwerk-Sandbox
+Der CLI-Subprozess läuft mit `support/sitecustomize.py` (über `PYTHONPATH`): Verbindungen/DNS zu allem außer Loopback werden blockiert und protokolliert, zusätzlich zeigen `HTTP(S)_PROXY` auf einen toten Port (`NO_PROXY=127.0.0.1,localhost`). Jeder blockierte Versuch lässt den Test fehlschlagen. Implementierungen dürfen also nie auf echte Server zurückfallen, z. B. weil sie `ILIAS_CLI_CONFIG_DIR` ignorieren.
+
+## 8. Secret-Leak-Check
 `tests/acceptance/leak_check.py <secret> <pfade…>` sucht ein Geheimnis (roh, URL- und Base64-kodiert) in Dateibäumen. Die Akzeptanztests prüfen damit stdout/stderr aller Aufrufe (inkl. Tracebacks) und alle geschriebenen Dateien inkl. Keyring auf das Test-Passwort.

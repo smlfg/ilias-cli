@@ -308,3 +308,6 @@ def test_base_url_with_path_prefix(tmp_path):
         assert s.exit_code == 0, str(s)
     finally:
         w.stop()
+    from .conftest import assert_no_external_network
+
+    assert_no_external_network(h)

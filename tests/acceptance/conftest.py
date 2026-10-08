@@ -77,6 +77,7 @@ class Harness:
         self.home = tmp_path / "home"
         self.config_dir = tmp_path / "config"
         self.keyring_file = tmp_path / "keyring" / "keyring.json"
+        self.net_log = tmp_path / "net-blocked.log"
         self.cwd = tmp_path / "work"
         for d in (self.home, self.config_dir, self.cwd, self.keyring_file.parent):
             d.mkdir(parents=True, exist_ok=True)
@@ -106,6 +107,12 @@ class Harness:
             "PYTHONIOENCODING": "utf-8",
             "PYTHONPATH": str(SUPPORT_DIR),
             "ACCEPTANCE_KEYRING_FILE": str(self.keyring_file),
+            # Netzwerk-Sperre (support/sitecustomize.py) + toter Proxy als zweite Sicherung
+            "ACCEPTANCE_SANDBOX": "1",
+            "ACCEPTANCE_NET_LOG": str(self.net_log),
+            "HTTP_PROXY": "http://127.0.0.1:9",
+            "HTTPS_PROXY": "http://127.0.0.1:9",
+            "ALL_PROXY": "http://127.0.0.1:9",
         })
         env["PYTHON_KEYRING_BACKEND"] = (
             "acceptance_keyring.FileKeyring" if self.keyring_mode == "fake" else "keyring.backends.fail.Keyring"
@@ -178,7 +185,16 @@ def world():
 
 @pytest.fixture
 def h(tmp_path, world) -> Harness:
-    return Harness(tmp_path, world)
+    harness = Harness(tmp_path, world)
+    yield harness
+    assert_no_external_network(harness)
+
+
+def assert_no_external_network(harness: Harness) -> None:
+    """Jeder Versuch, einen Nicht-localhost-Host zu kontaktieren (z. B. echte HHN-Server,
+    weil die Test-Konfiguration ignoriert wurde), lässt den Test fehlschlagen."""
+    if harness.net_log.exists() and harness.net_log.read_text().strip():
+        pytest.fail("Netzwerkzugriff außerhalb von localhost versucht (blockiert):\n" + harness.net_log.read_text())
 
 
 def file_mode(p: Path) -> int:
