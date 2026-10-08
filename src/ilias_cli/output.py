@@ -28,8 +28,10 @@ from ilias_core.models import (
     MoodleLoginResult,
     MoodleStatusResult,
     SessionStatus,
+    SetupResult,
     UrlNode,
 )
+from ilias_core.setup import InstanceInfo
 
 console = Console()
 err_console = Console(stderr=True)
@@ -75,6 +77,35 @@ def error_payload(exc: Exception, exit_code: int) -> dict[str, Any]:
         "exit_code": exit_code,
         "message": str(exc),
     }
+
+
+# ------------------------------------------------------------- setup (Spec §3)
+def print_instances(infos: list[InstanceInfo]) -> None:
+    table = Table(title="Verfügbare Instanzen", header_style="bold")
+    table.add_column("Schlüssel", no_wrap=True)
+    table.add_column("Name")
+    table.add_column("Stadt", no_wrap=True)
+    table.add_column("LMS", no_wrap=True)
+    table.add_column("Auth", no_wrap=True)
+    table.add_column("2FA", no_wrap=True)
+    for info in infos:
+        table.add_row(
+            escape(info.key),
+            escape(info.name),
+            escape(info.city),
+            escape(info.lms),
+            escape(info.auth),
+            "TOTP" if info.requires_totp else "—",
+        )
+    out_console.print(table)
+
+
+def print_setup(result: SetupResult) -> None:
+    out_console.print(
+        f"[green]Eingerichtet:[/green] {escape(result.instance)} als "
+        f"{escape(result.username)}. Neue Eingabe erst nötig, wenn die Session abläuft."
+    )
+    out_console.print(f"[dim]{result.config_path} · {result.timestamp}[/dim]")
 
 
 # ------------------------------------------------------------- Moodle: Session

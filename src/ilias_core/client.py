@@ -94,9 +94,11 @@ class IliasClient:
     # -- Status ----------------------------------------------------------
     def status(self) -> SessionStatus:
         cookies = self.store.load()
+        key = self.config.instance
         if not cookies:
             raise NotLoggedInError(
-                "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen."
+                "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen.",
+                hint=f"Erst `ilias login --instance {key}` ausführen.",
             )
 
         state = self._dashboard_state(cookies)
@@ -106,7 +108,8 @@ class IliasClient:
             )
         if state is not DashboardState.OK:
             raise SessionExpiredError(
-                "Session abgelaufen. Bitte erneut `ilias login` ausführen."
+                "Session abgelaufen. Bitte erneut `ilias login` ausführen.",
+                hint=f"Erneut mit `ilias login --instance {key}` anmelden (kein Auto-Re-Login).",
             )
 
         return SessionStatus(
