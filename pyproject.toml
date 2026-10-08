@@ -1,7 +1,7 @@
 [project]
 name = "ilias-cli"
 version = "0.1.0"
-description = "Kommandozeilen-Tool für ILIAS (Login, Session, Status) – Phase 1"
+description = "Kommandozeilen-Tool für ILIAS (HHN, Uni Mannheim) und Moodle (HS Mannheim): Login, Session, Kurse, Kursinhalt"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
