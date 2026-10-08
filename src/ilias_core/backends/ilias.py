@@ -20,6 +20,7 @@ from ..models import (
     Section,
     SessionStatus,
 )
+from ..web import IliasWebSession
 from .base import Backend
 
 
@@ -27,9 +28,16 @@ class IliasBackend(Backend):
     name = "ilias"
     supports_login = True
 
-    def __init__(self, instance, *, client: IliasClient | None = None) -> None:
+    def __init__(
+        self,
+        instance,
+        *,
+        client: IliasClient | None = None,
+        web: IliasWebSession | None = None,
+    ) -> None:
         super().__init__(instance)
         self.client = client or IliasClient(instance)
+        self.web = web or IliasWebSession(instance)
 
     @property
     def uses_totp(self) -> bool:  # type: ignore[override]
@@ -51,6 +59,11 @@ class IliasBackend(Backend):
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
 
     supports_courses = False
+
+    def prepare_read(self) -> None:
+        """Session laden und eine geschützte Seite prüfen (Exit 2/3/4, kein Re-Login)."""
+
+        self.web.get("/ilias.php?baseClass=ilmembershipoverviewgui", label="Session-Prüfung")
 
     def courses(self) -> list[Course]:
         raise NotSupportedError(

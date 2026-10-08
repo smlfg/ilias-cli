@@ -47,6 +47,16 @@ class Backend(abc.ABC):
     def logout(self) -> LogoutResult:
         """Lokale Session löschen."""
 
+    def prepare_read(self) -> None:
+        """Vor `courses`/`ls` prüfen, ob die gespeicherte Session nutzbar ist.
+
+        Standard: nichts zu tun (Backends, die ihre Session selbst in
+        `courses`/`course_contents` prüfen). ILIAS prüft hier Session + HTTP
+        (Exit 2/3/4), bevor der Service weiterreicht (Spec §4.4, §7).
+        """
+
+        return None
+
     @abc.abstractmethod
     def courses(self) -> list[Course]:
         """Kurse des angemeldeten Nutzers (F2)."""
