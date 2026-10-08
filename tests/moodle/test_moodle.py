@@ -79,9 +79,7 @@ def test_login_wrong_password(h: Harness) -> None:
 
 def test_login_server_error(h: Harness) -> None:
     """Serverfehler (5xx) während des Logins: Exit 4."""
-    # Wir simulieren einen Serverfehler, indem wir den config-base_url auf einen Port setzen,
-    # an dem nichts lauscht (Connection refused -> Exit 4)
-    from portpicker import available_port  # fallback: own implementation
+    # Simuliere einen Serverfehler, indem wir einen Port nutzen, an dem nichts lauscht
     r = h.login(base_url=f"http://127.0.0.1:{free_port()}")
     assert r["exit_code"] == 4, str(r)
 

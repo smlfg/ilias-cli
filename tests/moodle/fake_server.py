@@ -13,7 +13,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from dataclasses import dataclass, field
-from typing import dict as dict_t
+from typing import Dict as dict_t
 
 
 KC_BASE = "http://127.0.0.1"
@@ -21,11 +21,11 @@ KC_BASE = "http://127.0.0.1"
 
 @dataclass
 class MoodleRecordedRequest:
-    method: str
-    path: str
-    query: dict_t[str, list[str]]
-    form: dict_t[str, list[str]]
-    headers: dict_t[str, str]
+    method: str = "get"
+    path: str = "/"
+    query: dict_t[str, list] = field(default_factory=dict)
+    form: dict_t[str, list] = field(default_factory=dict)
+    headers: dict_t[str, str] = field(default_factory=lambda: "")
 
 
 @dataclass
@@ -35,8 +35,8 @@ class MoodleFakeWorld:
     requests: list[MoodleRecordedRequest] = field(default_factory=list)
 
     port: int = 0
-    _server: ThreadingHTTPServer | None = field(default_factory=None)
-    _thread: threading.Thread | None = field(default_factory=None)
+    _server: object = None
+    _thread: object = None
 
     @property
     def base(self) -> str:
