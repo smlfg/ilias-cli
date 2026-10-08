@@ -1,0 +1,43 @@
+# PII guard: blocks invented personal data (mail addresses, Matrikelnummern)
+# and committed secrets. Runs on every push to every branch and on every PR.
+# Details: scripts/pii_guard.py, exceptions: .pii-allowlist / .gitleaksignore
+name: pii-guard
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  personal-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keine Mailadressen/Matrikelnummern außer Allowlist
+        run: python3 scripts/pii_guard.py
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    env:
+      # Pinned CLI release (no gitleaks-action, no license key needed).
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks ${{ env.GITLEAKS_VERSION }}
+        run: |
+          curl -sSfL -o gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz -C "$RUNNER_TEMP" gitleaks
+          rm gitleaks.tgz
+      - name: Secrets in der Historie dieses Stands
+        # Scans every commit reachable from HEAD. Known false positives
+        # (fake test passwords) are listed by fingerprint in .gitleaksignore.
+        run: |
+          "$RUNNER_TEMP/gitleaks" git --redact --verbose --no-banner \
+            --log-opts="HEAD" --exit-code 1 .
