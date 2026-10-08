@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Samuel Fleig", email = "samuel.fleig@stud.hs-heilbronn.de"}
+    {name = "Samuel Fleig"}
 ]
 dependencies = [
     "httpx>=0.27.0",
