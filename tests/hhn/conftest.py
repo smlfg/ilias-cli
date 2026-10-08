@@ -32,9 +32,11 @@ def pytest_collection_modifyitems(config, items):
     if os.environ.get("HHN_STRICT") == "1":
         return
     marker = pytest.mark.xfail(reason="HHN-Spec: noch nicht implementiert (HHN_STRICT=1 für harte Prüfung)", strict=False)
-    here = os.path.dirname(__file__)
+    # Nur Tests in tests/hhn/ selbst: os.sep anhängen, sonst passt das Präfix auch auf
+    # Geschwister-Ordner wie tests/hhn_unit/ (die würden still als xfail markiert).
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "")
     for item in items:
-        if str(item.fspath).startswith(here):
+        if os.path.abspath(str(item.fspath)).startswith(here):
             item.add_marker(marker)
 
 
