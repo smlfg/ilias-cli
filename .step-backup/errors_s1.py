@@ -45,16 +45,6 @@ class IliasError(Exception):
         return f"{type(self).__name__}({self.message!r})"
 
 
-class AbortError(IliasError):
-    """Abbruch durch den Nutzer (Ctrl-C, Ctrl-D/EOF). Exit 1."""
-
-    exit_code = EXIT_AUTH
-    code = "aborted"
-
-    def __init__(self, message: str = "Abgebrochen, nichts gespeichert.", **kwargs) -> None:
-        super().__init__(message, **kwargs)
-
-
 class AuthenticationError(IliasError):
     """Anmeldung fehlgeschlagen (falsches Passwort/TOTP, Moodle: invalidlogin)."""
 

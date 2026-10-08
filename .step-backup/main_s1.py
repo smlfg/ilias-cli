@@ -8,17 +8,14 @@ wählt das Backend (``ilias`` für ``hhn``/``uni-mannheim``, ``moodle`` für
 
 from __future__ import annotations
 
-import sys
 from collections.abc import Callable
 from typing import Any
 
 import typer
 
 from ilias_core import debuglog
-from ilias_core import setup as setup_core
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
-from ilias_core.errors import AbortError, IliasError
-from ilias_core.timeutil import now_iso
+from ilias_core.errors import IliasError
 from ilias_core.models import (
     CourseContentsResult,
     CoursesResult,
@@ -32,27 +29,9 @@ from ilias_core.models import (
 )
 from ilias_core.secrets import Secret
 from ilias_core.service import Service, open_service
-from ilias_core.setup import filter_instances, merge_config, write_config_atomic
+from ilias_core.setup import filter_instances
 
 from . import output, prompts
-
-
-def _read_stdin_secret() -> str:
-    """Eine Zeile von stdin (Passwort), nur das Zeilenumbruchzeichen abschneiden."""
-
-    line = sys.stdin.readline()
-    if line == "":
-        raise AbortError()
-    return line.removesuffix("\n").removesuffix("\r")
-
-
-def _stdin_otp_callback() -> str:
-    """TOTP-Code aus einer weiteren stdin-Zeile; EOF -> Abort."""
-
-    line = sys.stdin.readline()
-    if line == "":
-        raise AbortError()
-    return line.removesuffix("\n").removesuffix("\r")
 
 app = typer.Typer(
     help=(
@@ -138,10 +117,6 @@ def _run(
     except KeyboardInterrupt:  # pragma: no cover
         raise typer.Exit(code=130) from None
     except Exception as exc:  # noqa: BLE001 - bewusst: nie einen Traceback ausgeben
-        if debuglog.enabled():
-            import traceback
-
-            traceback.print_exc()
         raise _fail(
             command, IliasError(f"Unerwarteter Fehler: {type(exc).__name__}"), json_output, service
         ) from None
@@ -179,71 +154,12 @@ def setup(
                 console_line = f"{info.key:<14} {info.name} ({info.city}) – {info.lms}, {info.auth}, {totp}, {info.base_url}"
                 typer.echo(console_line)
         return
-    tty = sys.stdin.isatty()
-
-    if not tty and not instance:
-        # §3.6: ohne TTY und ohne Instanz sofort klar scheitern, bevor ein Request geht
-        raise _fail(
-            "setup",
-            IliasError(
-                "Ohne Terminal: `ilias setup --instance <name> --username <name>` und "
-                "Passwort (+ Code) zeilenweise über stdin.",
-                hint="Interaktiv einfach `ilias setup` ausführen.",
-            ),
-            json_output,
-            None,
-        )
-
     def op(service: Service) -> Any:
-        stored_username = setup_core.read_stored_username(
-            service.instance.config_file, service.instance.key
-        )
-        user = username or stored_username
-        if not user:
-            raise IliasError(
-                "Kein Benutzername: --username angeben oder zuvor gespeichert haben.",
-            )
-        if tty:
-            if username is None:
-                user = typer.prompt(
-                    getattr(service.instance, "username_label", "Benutzername"),
-                    default=user,
-                    err=True,
-                )
-            password = prompts.ask_password()
-            otp_callback = prompts.ask_totp if service.backend.uses_totp else None
-        else:
-            password = _read_stdin_secret()
-            otp_callback = _stdin_otp_callback if service.backend.uses_totp else None
-        result = service.login(
-            Credentials(username=user, password=Secret(password)), otp_callback
-        )
-        cfg_path = service.instance.config_file
-        existing = cfg_path.read_text(encoding="utf-8") if cfg_path.exists() else ""
-        write_config_atomic(cfg_path, merge_config(existing, service.instance.key, user))
-        return (service, result, user, cfg_path)
+        from ilias_core.errors import NotSupportedError
 
-    _, payload = _run("setup", json_output, instance, debug, op)
-    service, result, user, cfg_path = payload
-    if json_output:
-        output.print_json(
-            {
-                "ok": True,
-                "command": "setup",
-                "instance": service.instance.key,
-                "lms": service.instance.lms,
-                "username": user,
-                "verified": True,
-                "session_stored": True,
-                "config_path": str(cfg_path),
-                "timestamp": now_iso(),
-            }
-        )
-    else:
-        typer.echo(
-            f"Eingerichtet: {service.instance.key} als {user}. "
-            "Neue Eingabe erst nötig, wenn die Session abläuft."
-        )
+        raise NotSupportedError("`ilias setup` wird in den nächsten Schritten ergänzt (S2–S4).")
+
+    _run("setup", json_output, instance, debug, op)
 
 
 @app.command()
