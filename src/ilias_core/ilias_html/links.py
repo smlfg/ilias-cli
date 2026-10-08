@@ -58,14 +58,14 @@ def parse_link(href: str | None, base_url: str = "") -> tuple[str | None, int | 
     if match:
         return (match.group(1).lower(), int(match.group(2)))
 
-    if path.endswith("goto.php") or path.endswith("/goto.php"):
+    if path.endswith(("goto.php", "/goto.php")):
         target = query.get("target", "")
         match = _TARGET_RE.match(target)
         if match:
             return (match.group(1).lower(), int(match.group(2)))
         return (None, None)
 
-    if path.endswith("ilias.php") or path.endswith("/ilias.php"):
+    if path.endswith(("ilias.php", "/ilias.php")):
         ref = query.get("ref_id", "")
         if not ref.isdigit():
             return (None, None)

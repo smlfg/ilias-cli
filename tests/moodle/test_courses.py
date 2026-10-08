@@ -11,8 +11,9 @@ from datetime import datetime
 import pytest
 from acceptance.leak_check import find_secret_in_text
 
-from ilias_core import Instance, NotSupportedError
+from ilias_core import open_service
 from ilias_core.backends.ilias import IliasBackend
+from ilias_core.errors import NotLoggedInError
 from ilias_core.timeutil import semester_from_timestamp
 
 from .conftest import INSTANCE, USERNAME, Harness, RunResult
@@ -226,16 +227,15 @@ def test_courses_username_in_human_output(h: Harness):
 
 
 # ------------------------------------------------------------------ ILIAS
-@pytest.mark.xfail(
-    strict=True,
-    reason="HHN S7/S8: ILIAS courses/ls sind jetzt implementiert (supports_courses=True); "
-    "dieser Test prüft das entfernte 'not supported'-Verhalten. Vom Integrationslauf zu entfernen.",
-)
-def test_ilias_backend_courses_not_supported():
-    """F2/F3 für ILIAS: klarer NotSupported-Fehler statt Absturz."""
-    backend = IliasBackend(Instance("hhn", "ilias", "https://ilias.example.org"))
-    with pytest.raises(NotSupportedError) as excinfo:
+def test_ilias_backend_supports_courses_and_ls(tmp_path, monkeypatch):
+    """F2/F3 für ILIAS sind per HTML gebaut (HHN S6–S8): kein NotSupported mehr, ohne Session Exit 2."""
+    monkeypatch.setenv("ILIAS_CLI_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    backend = open_service("hhn").backend
+    assert isinstance(backend, IliasBackend)
+    assert backend.supports_courses is True
+    with pytest.raises(NotLoggedInError):
         backend.courses()
-    assert "ILIAS" in excinfo.value.message
-    with pytest.raises(NotSupportedError):
+    with pytest.raises(NotLoggedInError):
         backend.course_contents(101)

@@ -58,11 +58,11 @@ class ContainerBlock:
     items: list[ContainerItem] = field(default_factory=list)
 
 
-def _text(element) -> str:  # noqa: ANN001 - bs4-Element
+def _text(element) -> str:
     return props.decode_text(element.get_text(" ", strip=True)) if element is not None else ""
 
 
-def _first_icon(element):  # noqa: ANN001 - bs4-Element
+def _first_icon(element):
     for selector in ICON_SELECTORS:
         found = element.select_one(selector)
         if found is not None:
@@ -70,13 +70,13 @@ def _first_icon(element):  # noqa: ANN001 - bs4-Element
     return None
 
 
-def _data_ref(element) -> int | None:  # noqa: ANN001 - bs4-Element
+def _data_ref(element) -> int | None:
     raw = element.get("data-list-item-id") or ""
     match = _DATA_LIST_ITEM_RE.search(raw)
     return int(match.group(1)) if match else None
 
 
-def _parse_item(element, base_url: str) -> ContainerItem:  # noqa: ANN001 - bs4-Element
+def _parse_item(element, base_url: str) -> ContainerItem:
     del base_url  # parse_link wertet nur Pfad/Query aus
     anchor = None
     href = ""
@@ -128,7 +128,7 @@ def _parse_item(element, base_url: str) -> ContainerItem:  # noqa: ANN001 - bs4-
     )
 
 
-def _content(soup: BeautifulSoup):  # noqa: ANN001 - bs4-Element
+def _content(soup: BeautifulSoup):
     return soup.select_one("#ilContentContainer") or soup
 
 

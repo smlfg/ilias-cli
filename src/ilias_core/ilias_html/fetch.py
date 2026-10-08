@@ -36,8 +36,8 @@ from ..errors import (
     CrawlLimitError,
     NetworkError,
     NotLoggedInError,
-    PermissionDeniedError,
     ParserError,
+    PermissionDeniedError,
     SessionExpiredError,
 )
 from ..http import DEFAULT_TIMEOUT, user_agent

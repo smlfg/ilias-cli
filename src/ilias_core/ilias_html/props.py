@@ -13,8 +13,7 @@ import re
 import unicodedata
 from datetime import datetime, timedelta
 
-from ..timeutil import now
-from ..timeutil import _BERLIN
+from ..timeutil import _BERLIN, now
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _SIZE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(bytes?|kib|kb|mib|mb|gib|gb|tib|tb)\b", re.IGNORECASE)
@@ -69,7 +68,7 @@ def parse_size(text: str | None) -> int | None:
         value = float(number)
     except ValueError:  # pragma: no cover - durch Regex ausgeschlossen
         return None
-    return int(round(value * factor))
+    return round(value * factor)
 
 
 def parse_date(text: str | None, *, reference: datetime | None = None) -> str | None:

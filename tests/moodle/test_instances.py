@@ -15,7 +15,7 @@ from ilias_core.backends import available_backends
 from ilias_core.backends.ilias import IliasBackend
 from ilias_core.backends.moodle import MoodleBackend
 from ilias_core.config import BUILTIN_INSTANCES, config_dir, config_path
-from ilias_core.errors import NotLoggedInError, NotSupportedError
+from ilias_core.errors import NotLoggedInError
 from ilias_core.secrets import Secret
 
 
@@ -155,19 +155,15 @@ def test_moodle_logout_without_session_succeeds(config_env):
     assert result.instance == "hs-mannheim" and result.lms == "moodle"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="HHN S7/S8: ILIAS courses/ls sind jetzt implementiert (supports_courses=True); "
-    "dieser Test prüft das entfernte 'not supported'-Verhalten. Vom Integrationslauf zu entfernen.",
-)
-def test_ilias_backend_courses_and_ls_are_not_supported(config_env):
-    """ILIAS kann (seit PR #6) einloggen, aber courses/ls gibt es nur für Moodle."""
+def test_ilias_backend_courses_and_ls_are_supported(config_env):
+    """ILIAS kann einloggen (PR #6) und seit HHN S6–S8 auch courses/ls; ohne Session -> nicht eingeloggt."""
     backend = open_service("hhn").backend
     assert isinstance(backend, IliasBackend)
     assert backend.supports_login is True
-    with pytest.raises(NotSupportedError):
+    assert backend.supports_courses is True
+    with pytest.raises(NotLoggedInError):
         backend.courses()
-    with pytest.raises(NotSupportedError):
+    with pytest.raises(NotLoggedInError):
         backend.course_contents(1)
     # ohne gespeicherte Session gibt es nichts zu löschen
     assert backend.logout().token_removed is False

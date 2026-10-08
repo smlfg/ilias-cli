@@ -324,6 +324,10 @@ class UrlNode:
         return {"type": "url", "name": self.name, "url": self.url}
 
 
+#: ILIAS-Weblink (Moodle nennt sein Pendant ``url``).
+WEBLINK_MODNAME = "webr"
+
+
 @dataclass(frozen=True)
 class ItemNode:
     """Nicht-Datei/Ordner-Objekt innerhalb eines Ordners (Übung, Test, Forum …)."""
@@ -336,7 +340,7 @@ class ItemNode:
     children: list[ContentNode] | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "type": "item",
             "name": self.name,
             "modname": self.modname,
@@ -347,6 +351,9 @@ class ItemNode:
                 None if self.children is None else [child.to_json_dict() for child in self.children]
             ),
         }
+        if self.modname == WEBLINK_MODNAME:
+            data["target_url"] = None
+        return data
 
 
 ContentNode = FolderNode | FileNode | UrlNode | ItemNode
@@ -370,10 +377,14 @@ class Module:
     mimetype: str | None = None
     timemodified: str | None = None
     fileurl: str | None = None
+    #: ILIAS: ref_id des Objekts (gleich ``id``, Spec §6.2); Moodle lässt es leer.
+    ref_id: int | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "id": self.id,
+        data: dict[str, Any] = {"id": self.id}
+        if self.ref_id is not None:
+            data["ref_id"] = self.ref_id
+        data |= {
             "name": self.name,
             "modname": self.modname,
             "url": self.url,
@@ -388,6 +399,9 @@ class Module:
             value = getattr(self, key)
             if value is not None:
                 data[key] = value
+        if self.modname == WEBLINK_MODNAME:
+            # Ziel nur per Redirect von calldirectlink abrufbar; diese Runde nicht aufgelöst (§6.2).
+            data["target_url"] = None
         return data
 
 

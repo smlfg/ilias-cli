@@ -167,6 +167,7 @@ class IliasBackend(Backend):
                 url=url,
                 visible=not item.offline,
                 children=children,
+                ref_id=item.ref_id,
                 size=size,
                 size_text=size_text,
                 suffix=suffix,
@@ -180,6 +181,7 @@ class IliasBackend(Backend):
             url=url,
             visible=not item.offline,
             children=children,
+            ref_id=item.ref_id,
         )
 
     def _folder_children(

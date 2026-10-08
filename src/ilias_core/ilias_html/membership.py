@@ -45,11 +45,11 @@ class Membership:
     properties: list[tuple[str, str]] = field(default_factory=list)
 
 
-def _text(element) -> str:  # noqa: ANN001 - bs4-Element
+def _text(element) -> str:
     return props.decode_text(element.get_text(" ", strip=True)) if element is not None else ""
 
 
-def _properties(element) -> list[tuple[str, str]]:  # noqa: ANN001 - bs4-Element
+def _properties(element) -> list[tuple[str, str]]:
     pairs: list[tuple[str, str]] = []
     for name_node in element.select(PROPERTY_NAME_SELECTOR):
         parent = name_node.parent
@@ -60,7 +60,7 @@ def _properties(element) -> list[tuple[str, str]]:  # noqa: ANN001 - bs4-Element
     return pairs
 
 
-def _icon_type(element) -> str | None:  # noqa: ANN001 - bs4-Element
+def _icon_type(element) -> str | None:
     for selector in ICON_SELECTORS:
         icon = element.select_one(selector)
         if icon is not None:
@@ -70,7 +70,7 @@ def _icon_type(element) -> str | None:  # noqa: ANN001 - bs4-Element
     return None
 
 
-def _parse_item(element, base_url: str) -> Membership | None:  # noqa: ANN001 - bs4-Element
+def _parse_item(element, base_url: str) -> Membership | None:
     anchor = None
     for selector in TITLE_LINK_SELECTORS:
         anchor = element.select_one(selector)
@@ -112,7 +112,7 @@ def _parse_item(element, base_url: str) -> Membership | None:  # noqa: ANN001 - 
     )
 
 
-def _panel_body(html: str):  # noqa: ANN001 - bs4-Element
+def _panel_body(html: str):
     return BeautifulSoup(html, "html.parser").select_one(PANEL_BODY_SELECTOR)
 
 

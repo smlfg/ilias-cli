@@ -159,7 +159,8 @@ def trim_sections(sections: list[Section], depth: int | None) -> list[Section]:
         modules: list[Module] = []
         for module in section.modules:
             if depth < 3:
-                modules.append(replace(module, children=[]))
+                # None = "nicht aufgeklappt" (Sitzung, Kurslink) bleibt None (Spec §6.2).
+                modules.append(module if module.children is None else replace(module, children=[]))
             elif module.children is None:
                 modules.append(module)
             else:
