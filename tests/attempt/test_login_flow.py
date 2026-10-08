@@ -33,7 +33,7 @@ def test_successful_login_with_totp(config_dir, memory_keyring):
         result = IliasClient(cfg).login("student", "geheim", otp_callback=lambda: "123456")
 
     assert result.authenticated is True
-    assert result.method == "oidc"
+    assert result.method == "oidc-keycloak"
 
     calls = routes["authenticate"].calls
     credentials = _form(calls[0].request.content)

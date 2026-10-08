@@ -65,7 +65,7 @@ def test_status_expired_exit_3(config_dir, memory_keyring):
 
 
 def test_login_success_json(config_dir, memory_keyring, monkeypatch):
-    monkeypatch.setattr("ilias_cli.prompts.ask_username", lambda: "student")
+    monkeypatch.setattr("ilias_cli.prompts.ask_username", lambda *_: "student")
     monkeypatch.setattr("ilias_cli.prompts.ask_password", lambda: "geheim")
     monkeypatch.setattr("ilias_cli.prompts.ask_totp", lambda: "123456")
     with respx.mock(assert_all_called=True) as router:
@@ -80,7 +80,7 @@ def test_login_success_json(config_dir, memory_keyring, monkeypatch):
 
 
 def test_login_wrong_password_exit_1(config_dir, memory_keyring, monkeypatch):
-    monkeypatch.setattr("ilias_cli.prompts.ask_username", lambda: "student")
+    monkeypatch.setattr("ilias_cli.prompts.ask_username", lambda *_: "student")
     monkeypatch.setattr("ilias_cli.prompts.ask_password", lambda: "geheim")
     monkeypatch.setattr("ilias_cli.prompts.ask_totp", lambda: "123456")
     with respx.mock(assert_all_called=False) as router:
@@ -95,13 +95,13 @@ def test_logout_clears_session_json(config_dir, memory_keyring):
     _save_session(config_dir)
     result = runner.invoke(app, ["logout", "--json"])
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"ok": True, "session_removed": True}
+    assert json.loads(result.stdout) == {"ok": True, "session_removed": True, "instance": "hhn"}
     assert SessionStore(load_config()).load() is None
 
 
 def test_cli_password_not_in_output(config_dir, memory_keyring, monkeypatch, caplog):
     password = "NochGeheimer-987"
-    monkeypatch.setattr("ilias_cli.prompts.ask_username", lambda: "student")
+    monkeypatch.setattr("ilias_cli.prompts.ask_username", lambda *_: "student")
     monkeypatch.setattr("ilias_cli.prompts.ask_password", lambda: password)
     monkeypatch.setattr("ilias_cli.prompts.ask_totp", lambda: "123456")
 

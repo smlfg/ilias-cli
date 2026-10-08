@@ -23,14 +23,15 @@ def print_json(payload: dict[str, Any]) -> None:
 
 def print_login(result: LoginResult) -> None:
     console.print(
-        f"[green]Login erfolgreich[/green] "
-        f"({result.method}) – {result.base_url} [dim]({result.client_id})[/dim]"
+        f"[green]Login erfolgreich und geprüft[/green] ({result.method}) – "
+        f"{result.base_url} [dim](Instanz {result.instance}, {result.client_id})[/dim]"
     )
 
 
 def print_status(status: SessionStatus) -> None:
     console.print(
-        f"[green]Eingeloggt[/green] – {status.base_url} [dim]({status.client_id})[/dim]"
+        f"[green]Eingeloggt[/green] – {status.base_url} "
+        f"[dim](Instanz {status.instance}, {status.client_id})[/dim]"
     )
 
 

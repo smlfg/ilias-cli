@@ -65,7 +65,7 @@ class SessionStore:
 
     @property
     def username(self) -> str:
-        return f"session:{self.config.base_url}|{self.config.client_id}"
+        return f"session:{self.config.instance}|{self.config.base_url}|{self.config.client_id}"
 
     def _keyring(self) -> KeyringLike | None:
         if self._force_file:

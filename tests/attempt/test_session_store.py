@@ -43,4 +43,4 @@ def test_configurable_config_dir_is_used(tmp_path):
     cfg = Config(config_dir=custom)
     store = SessionStore(cfg, force_file=True)
     store.save({"PHPSESSID": "xyz"})
-    assert (custom / "session.json").is_file()
+    assert (custom / "session-hhn.json").is_file()

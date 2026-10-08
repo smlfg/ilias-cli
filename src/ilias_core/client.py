@@ -2,26 +2,27 @@
 
 Alle Kernfunktionen arbeiten ohne Prompts und ohne ``print``. Passwort und
 TOTP werden als Parameter bzw. Callback übergeben. Die Cookies werden nur
-im ``SessionStore`` abgelegt und nie zurückgegeben.
+im ``SessionStore`` abgelegt und nie zurückgegeben. Gespeichert wird erst,
+wenn der Login verifiziert ist (siehe :mod:`ilias_core.auth.verify`).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
 import httpx
 
 from . import browser as browser_module
-from .auth import KeycloakLoginFlow, is_ilias_login_page
+from .auth import get_adapter
+from .auth.verify import DashboardState, check_dashboard
 from .config import Config, load_config
-from .errors import NetworkError, NotLoggedInError, SessionExpiredError
+from .errors import AuthenticationError, NotLoggedInError, ParserError, SessionExpiredError
 from .http import build_client
 from .models import LoginResult, SessionStatus
 from .session import SessionStore
 
 OtpCallback = Callable[[], str]
-STATUS_URL = "{base_url}/ilias.php?baseClass=ilDashboardGUI"
 
 
 class IliasClient:
@@ -38,6 +39,10 @@ class IliasClient:
         self.store = session_store or SessionStore(self.config)
         self._http_client = http_client
 
+    @property
+    def uses_totp(self) -> bool:
+        return get_adapter(self.config.auth).uses_totp
+
     # -- Login -----------------------------------------------------------
     def login(
         self,
@@ -45,32 +50,45 @@ class IliasClient:
         password: str,
         otp_callback: OtpCallback | None = None,
     ) -> LoginResult:
+        adapter = get_adapter(self.config.auth)
         client = self._client()
         try:
-            cookies = KeycloakLoginFlow(self.config.base_url, client).authenticate(
+            cookies = adapter(self.config.base_url, client).authenticate(
                 username, password, otp_callback
             )
         finally:
             self._close_if_owned(client)
 
         self.store.save(cookies)
-        return LoginResult(
-            authenticated=True,
-            base_url=self.config.base_url,
-            client_id=self.config.client_id,
-            method="oidc",
-            message="Login erfolgreich. Session wurde gespeichert.",
-        )
+        return self._login_result(adapter.name, "Login erfolgreich. Session wurde gespeichert.")
 
     def login_with_browser(self, *, timeout: int = browser_module.DEFAULT_TIMEOUT) -> LoginResult:
-        cookies = browser_module.login_with_browser(self.config.base_url, timeout=timeout)
+        adapter = get_adapter(self.config.auth)
+        cookies = browser_module.login_with_browser(
+            self.config.base_url, start_path=adapter.start_path, timeout=timeout
+        )
+        state = self._dashboard_state(cookies)
+        if state is DashboardState.UNKNOWN:
+            raise ParserError(
+                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Nichts gespeichert."
+            )
+        if state is not DashboardState.OK:
+            raise AuthenticationError(
+                "Die Browser-Session wird von ILIAS nicht akzeptiert. Nichts gespeichert."
+            )
         self.store.save(cookies)
+        return self._login_result(
+            "browser", "Login im Browser erfolgreich. Session wurde gespeichert."
+        )
+
+    def _login_result(self, method: str, message: str) -> LoginResult:
         return LoginResult(
             authenticated=True,
             base_url=self.config.base_url,
             client_id=self.config.client_id,
-            method="browser",
-            message="Login im Browser erfolgreich. Session wurde gespeichert.",
+            method=method,
+            message=message,
+            instance=self.config.instance,
         )
 
     # -- Status ----------------------------------------------------------
@@ -81,42 +99,33 @@ class IliasClient:
                 "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen."
             )
 
-        client = self._client()
-        try:
-            self._check_session(client, cookies)
-        finally:
-            self._close_if_owned(client)
+        state = self._dashboard_state(cookies)
+        if state is DashboardState.UNKNOWN:
+            raise ParserError(
+                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Session-Status unklar."
+            )
+        if state is not DashboardState.OK:
+            raise SessionExpiredError(
+                "Session abgelaufen. Bitte erneut `ilias login` ausführen."
+            )
 
         return SessionStatus(
             authenticated=True,
             base_url=self.config.base_url,
             client_id=self.config.client_id,
             message="Session ist gültig.",
+            instance=self.config.instance,
         )
 
-    def _check_session(self, client: httpx.Client, cookies: dict[str, str]) -> None:
-        host = (urlparse(self.config.base_url).hostname or "").lower()
-        for name, value in cookies.items():
-            client.cookies.set(name, value, domain=host)
-
-        url = STATUS_URL.format(base_url=self.config.base_url)
+    def _dashboard_state(self, cookies: dict[str, str]) -> DashboardState:
+        client = self._client()
         try:
-            response = client.get(url)
-        except httpx.HTTPError as exc:
-            raise NetworkError("Netzwerkfehler bei der Session-Prüfung.") from exc
-
-        if response.status_code in (401, 403):
-            raise SessionExpiredError(
-                "Session abgelaufen. Bitte erneut `ilias login` ausführen."
-            )
-        if response.status_code >= 400:
-            raise NetworkError(f"Serverfehler (HTTP {response.status_code}).")
-
-        final_path = urlparse(str(response.url)).path
-        if final_path.endswith("login.php") or is_ilias_login_page(response.text):
-            raise SessionExpiredError(
-                "Session abgelaufen. Bitte erneut `ilias login` ausführen."
-            )
+            host = (urlsplit(self.config.base_url).hostname or "").lower()
+            for name, value in cookies.items():
+                client.cookies.set(name, value, domain=host)
+            return check_dashboard(client, self.config.base_url)
+        finally:
+            self._close_if_owned(client)
 
     # -- Logout ----------------------------------------------------------
     def logout(self) -> bool:
