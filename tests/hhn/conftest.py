@@ -44,6 +44,7 @@ class HhnHarness(Harness):
     def env(self) -> dict[str, str]:
         env = super().env()
         env["ILIAS_CLI_REQUEST_INTERVAL"] = "0"
+        env.update(getattr(self, "extra_env", {}))  # pro Test setzbar, z. B. ILIAS_CLI_MAX_REQUESTS
         return env
 
     def setup(self, *extra: str, input: str) -> object:
