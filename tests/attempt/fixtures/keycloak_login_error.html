@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sign in to HHN</title>
+</head>
+<body>
+    <div id="kc-page-wrapper">
+        <div id="kc-header"></div>
+        <div id="kc-content">
+            <div id="kc-content-wrapper">
+                <div class="alert alert-error" role="alert">
+                    <span class="kc-feedback-text">Invalid username or password.</span>
+                </div>
+                <form id="kc-form-login" action="https://login.hs-heilbronn.de/realms/hhn/login-actions/authenticate?session_code=abc123&execution=def456&client_id=hhn_common_ilias&tab_id=ghi789" method="post">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" value="testuser" autocomplete="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" autocomplete="current-password" required>
+                    </div>
+                    <input type="hidden" name="credentialId" value="cred-123">
+                    <input type="hidden" name="rememberMe" value="true">
+                    <div class="kc-form-buttons">
+                        <input type="submit" id="kc-login" name="login" value="Sign In" class="btn btn-primary">
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

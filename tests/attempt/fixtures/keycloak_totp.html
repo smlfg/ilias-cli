@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authenticator - HHN</title>
+</head>
+<body>
+    <div id="kc-page-wrapper">
+        <div id="kc-header"></div>
+        <div id="kc-content">
+            <div id="kc-content-wrapper">
+                <form id="kc-otp-login-form" action="https://login.hs-heilbronn.de/realms/hhn/login-actions/authenticate?session_code=abc123&execution=def456&client_id=hhn_common_ilias&tab_id=ghi789" method="post">
+                    <div class="form-group">
+                        <label for="otp">Authenticator Code</label>
+                        <input type="text" id="otp" name="otp" value="" autocomplete="one-time-code" required>
+                    </div>
+                    <input type="hidden" name="credentialId" value="cred-123">
+                    <div class="kc-form-buttons">
+                        <input type="submit" id="kc-otp-login" name="login" value="Sign In" class="btn btn-primary">
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
