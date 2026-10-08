@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Anmelden bei hhn</title>
+</head>
+<body class="login-pf">
+  <div id="kc-header">
+    <h1 id="kc-header-wrapper">hhn</h1>
+  </div>
+  <div id="kc-content">
+    <div id="kc-feedback" class="pf-c-alert pf-m-danger">
+      <span id="input-error" class="pf-c-form__helper-text pf-m-error">
+        Ungültiger Authentifizierungscode.
+      </span>
+    </div>
+    <div id="kc-form">
+      <div id="kc-form-wrapper">
+        <form id="kc-otp-login-form"
+              action="https://login.hs-heilbronn.de/realms/hhn/login-actions/authenticate?session_code=abc123session&amp;execution=mno345execution&amp;client_id=hhn_common_ilias&amp;tab_id=ghi789tab"
+              method="post">
+          <input type="hidden" id="id" name="id" value="totp">
+          <div class="form-group">
+            <label for="otp" class="control-label">Authentifizierungscode</label>
+            <input type="text" id="otp" name="otp" autocomplete="off"
+                   class="form-control" autofocus>
+          </div>
+          <input type="hidden" name="credentialId" value="totp-credential">
+          <input name="login" type="submit" value="Anmelden">
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
