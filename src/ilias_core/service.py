@@ -63,7 +63,7 @@ class Service:
         if not self.backend.supports_courses:
             # sofort die passende "nicht unterstützt"-Meldung für ls (nicht die von courses)
             self.backend.course_contents(0)
-        course = resolve_course(self.backend.courses(), query)
+        course = resolve_course(self.backend.courses(), query, instance=self.instance.key)
         sections = trim_sections(self.backend.course_contents(course.id, depth), depth)
         return CourseContentsResult(
             instance=self.instance.key,
@@ -74,7 +74,13 @@ class Service:
         )
 
 
-def resolve_course(courses: list[Course], query: str) -> Course:
+def _courses_hint(instance: str | None) -> str:
+    if instance:
+        return f"`ilias courses --instance {instance}` zeigt die verfügbaren Kurse (id, Kurzname, Name)."
+    return "`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name)."
+
+
+def resolve_course(courses: list[Course], query: str, *, instance: str | None = None) -> Course:
     """Kurs per ID oder (case-insensitivem) Teilstring von fullname/shortname finden.
 
     Eine Zahl, die keine ref_id einer Mitgliedschaft ist, wird als **Kursnummer**
@@ -84,10 +90,7 @@ def resolve_course(courses: list[Course], query: str) -> Course:
     """
     text = unicodedata.normalize("NFC", (query or "").strip())
     if not text:
-        raise CourseNotFoundError(
-            "Kein Kurs angegeben.",
-            hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
-        )
+        raise CourseNotFoundError("Kein Kurs angegeben.", hint=_courses_hint(instance))
     if text.isdigit():
         target = int(text)
         for course in courses:
@@ -97,7 +100,7 @@ def resolve_course(courses: list[Course], query: str) -> Course:
         if len(matches) == 1:
             return matches[0]
         if matches:
-            return _ambiguous(text, matches, kind="Kursnummern")
+            return _ambiguous(text, matches, kind="Kursnummern", instance=instance)
     needle = text.lower()
     matches = [
         course
@@ -106,10 +109,7 @@ def resolve_course(courses: list[Course], query: str) -> Course:
         or needle in unicodedata.normalize("NFC", course.shortname).lower()
     ]
     if not matches:
-        raise CourseNotFoundError(
-            f"Kein Kurs passt auf {text!r}.",
-            hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
-        )
+        raise CourseNotFoundError(f"Kein Kurs passt auf {text!r}.", hint=_courses_hint(instance))
     exact = [
         course
         for course in matches
@@ -119,7 +119,7 @@ def resolve_course(courses: list[Course], query: str) -> Course:
     pool = exact or matches
     if len(pool) == 1:
         return pool[0]
-    return _ambiguous(text, pool)
+    return _ambiguous(text, pool, instance=instance)
 
 
 def _course_number_matches(courses: list[Course], number: str) -> list[Course]:
@@ -131,11 +131,16 @@ def _course_number_matches(courses: list[Course], number: str) -> list[Course]:
     return [course for course in courses if number in unicodedata.normalize("NFC", course.description)]
 
 
-def _ambiguous(text: str, pool: list[Course], *, kind: str = "Kurse") -> Course:
+def _ambiguous(
+    text: str, pool: list[Course], *, kind: str = "Kurse", instance: str | None = None
+) -> Course:
     listing = ", ".join(f"{c.id} ({c.shortname}: {c.fullname})" for c in pool)
+    hint = "Eindeutige Kurs-ID oder einen exakten Kurznamen angeben."
+    if instance:
+        hint = f"Eindeutige Kurs-ID angeben (s. `ilias courses --instance {instance}`)."
     raise CourseAmbiguousError(
         f"Mehrere {kind} passen auf {text!r}: {listing}.",
-        hint="Eindeutige Kurs-ID oder einen exakten Kurznamen angeben.",
+        hint=hint,
         candidates=[course.to_ref_dict() for course in pool],
     )
 
