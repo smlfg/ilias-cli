@@ -7,7 +7,9 @@ Server werden mit ``rich.markup.escape`` ausgegeben (Namen wie ``[Klausur]``).
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import sys
 from typing import Any
 
@@ -162,7 +164,46 @@ def _courses_table(result: CoursesResult) -> Table:
     return table
 
 
+def _ilias_courses_table(result: CoursesResult) -> Table:
+    """ILIAS-Layout (Spec §5.1): ID (ref_id) | Typ | Titel | Semester."""
+
+    table = Table(title=f"Kurse und Gruppen ({result.instance}, {result.lms})", header_style="bold")
+    table.add_column("ID (ref_id)", justify="right", no_wrap=True)
+    table.add_column("Typ", no_wrap=True)
+    table.add_column("Titel", overflow="fold")
+    table.add_column("Semester", no_wrap=True)
+    for course in result.courses:
+        table.add_row(
+            str(course.id),
+            escape(course.type or ""),
+            escape(course.fullname),
+            escape(course.semester or "—"),
+        )
+    return table
+
+
+def _terminal_width() -> int:
+    """Terminalbreite: ``COLUMNS`` bzw. stdout-Terminal (shutil), sonst stderr/stdin, sonst 80."""
+
+    columns = shutil.get_terminal_size(fallback=(0, 0)).columns
+    if columns > 0:
+        return columns
+    for stream in (sys.__stderr__, sys.__stdin__):
+        try:
+            return os.get_terminal_size(stream.fileno()).columns
+        except (AttributeError, OSError, ValueError):
+            continue
+    return 80
+
+
 def print_courses(result: CoursesResult) -> None:
+    if result.lms == "ilias":
+        # Eigene Konsole mit echter Terminalbreite, statt fest bei 80 Spalten umzubrechen.
+        # Breite UND Höhe setzen: sonst nimmt rich bei TERM=dumb/ohne TTY fest 80 Spalten.
+        console = Console(highlight=False, width=_terminal_width(), height=25)
+        console.print(_ilias_courses_table(result))
+        console.print(f"[dim]{len(result.courses)} Kurs(e) · {result.timestamp}[/dim]")
+        return
     out_console.print(_courses_table(result))
     out_console.print(f"[dim]{len(result.courses)} Kurs(e) · {result.timestamp}[/dim]")
 
@@ -278,10 +319,11 @@ def _render_children(branch: Tree, children: list | None) -> None:
 
 def _contents_tree(result: CourseContentsResult) -> Tree:
     course = result.course
-    root = Tree(
-        f"[bold]{escape(str(course.get('fullname', '')))}[/bold] "
-        f"([dim]{escape(str(course.get('shortname', '')))}[/dim])"
-    )
+    header = f"[bold]{escape(str(course.get('fullname') or ''))}[/bold]"
+    shortname = str(course.get("shortname") or "").strip()
+    if shortname:  # ILIAS hat keinen Kurznamen: dann keine leeren "()" (JSON unverändert)
+        header += f" ([dim]{escape(shortname)}[/dim])"
+    root = Tree(header)
     for section in result.sections:
         if not section.modules and (
             not section.name.strip() or _DEFAULT_SECTION_RE.match(section.name)

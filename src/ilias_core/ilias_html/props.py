@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from ..timeutil import _BERLIN, now
 
 _WHITESPACE_RE = re.compile(r"\s+")
-_SIZE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(bytes?|kib|kb|mib|mb|gib|gb|tib|tb)\b", re.IGNORECASE)
+_SIZE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(bytes?|kib|kb|mib|mb|gib|gb|tib|tb|b)\b", re.IGNORECASE)
 _DATE_RE = re.compile(
     r"(\d{1,2})\.\s*(Jan|Feb|M(?:ä|ae)r|Mrz|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\.?\s*(\d{4}),?\s*(\d{1,2}):(\d{2})",
     re.IGNORECASE,
@@ -33,7 +33,7 @@ _MONTHS = {
     "jun": 6, "jul": 7, "aug": 8, "sep": 9, "okt": 10, "nov": 11, "dez": 12,
 }
 _UNIT_FACTORS = {
-    "byte": 1, "bytes": 1,
+    "b": 1, "byte": 1, "bytes": 1,
     "kb": 1024, "kib": 1024,
     "mb": 1024**2, "mib": 1024**2,
     "gb": 1024**3, "gib": 1024**3,
