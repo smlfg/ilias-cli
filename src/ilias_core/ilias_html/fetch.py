@@ -7,8 +7,10 @@ dieser Reihenfolge (Spec §7/§13.7):
 
 1. Verbindungsfehler -> Exit 4,
 2. HTTP >= 500 -> Exit 4,
-3. Redirect auf ``login.php``/``cmd=force_login``/``reloadpublic=1``, Login-Formular
-   oder Metabar mit ``login.php`` statt ``logout.php`` -> Exit 3,
+3. Redirect auf ``login.php``/``cmd=force_login``/``reloadpublic=1``, in den Login-Fluss
+   (``openidconnect``, Keycloak, Shibboleth/SAML) oder auf einen anderen Host als den
+   ILIAS-Host (wird nie verfolgt), Login-Formular oder Metabar mit ``login.php`` statt
+   ``logout.php`` -> Exit 3,
 4. ``.alert-danger`` im Hauptinhalt bzw. Umleitung auf eine andere ref_id ->
    Exit 1 ``permission_denied``,
 5. sonst URL/HTML an den Parser.
@@ -46,6 +48,45 @@ DEFAULT_MAX_REQUESTS = 300
 MAX_REDIRECTS = 10
 ALERT_DANGER_SELECTOR = ".alert-danger"
 _LOGIN_MARKERS = ("login.php", "cmd=force_login", "reloadpublic=1")
+#: Weiterleitungen in den Login-/IdP-Fluss (OIDC/Keycloak, SAML/Shibboleth). Ihnen wird nie
+#: gefolgt: eine abgelaufene Session darf keinen Kontakt zu Keycloak/IdP auslösen.
+_AUTH_FLOW_MARKERS = (
+    "openidconnect",
+    "openid-connect",
+    "/realms/",
+    "shibboleth.sso",
+    "saml.php",
+)
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    parts = urlsplit(url)
+    scheme = (parts.scheme or "").lower()
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    return scheme, (parts.hostname or "").lower(), port or _DEFAULT_PORTS.get(scheme)
+
+
+def is_auth_redirect(location_url: str, base_url: str) -> bool:
+    """True, wenn einer Weiterleitung nicht gefolgt werden darf (Session-Ende, Exit 3).
+
+    Gilt für: ILIAS-Login-Seiten (``login.php``, ``cmd=force_login``, ``reloadpublic=1``),
+    den Login-/IdP-Fluss (``openidconnect``, Keycloak ``/realms/…``, Shibboleth/SAML) und
+    **jeden anderen Host** als den ILIAS-Host der Instanz (z. B. ``login.hs-heilbronn.de``).
+    Reine Funktion, wird vor dem Folgen jeder Weiterleitung geprüft.
+    """
+
+    lowered = location_url.lower()
+    if any(marker in lowered for marker in _LOGIN_MARKERS + _AUTH_FLOW_MARKERS):
+        return True
+    _, host, port = _origin(location_url)
+    _, base_host, base_port = _origin(base_url)
+    if not host:  # relative Angabe ohne Host: bleibt auf der Instanz
+        return False
+    return host != base_host or port != base_port
 
 
 def _env_float(name: str, default: float) -> float:
@@ -131,9 +172,10 @@ class Fetcher:
                 location = response.headers.get("location") or ""
                 if not location:
                     raise ParserError(f"{label}: Weiterleitung ohne Ziel ({safe_url(current)}).")
-                if any(marker in location.lower() for marker in _LOGIN_MARKERS):
+                target = urljoin(str(response.url), location)
+                if is_auth_redirect(target, self.base_url):
                     raise self._session_expired(label)
-                current = urljoin(str(response.url), location)
+                current = target
                 continue
             return self._classify(response, label, expect_ref)
         raise NetworkError(
