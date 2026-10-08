@@ -319,6 +319,7 @@ class MoodleBackend(Backend):
             startdate=timestamp_to_iso(start),
             enddate=timestamp_to_iso(item.get("enddate")),
             url=f"{self.base_url}/course/view.php?id={course_id}",
+            description="",
         )
 
     def _section_from_json(self, item: dict[str, Any], index: int) -> Section:
