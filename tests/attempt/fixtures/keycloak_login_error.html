@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><title>Anmelden - Keycloak</title></head>
+<body>
+<div id="kc-content">
+  <div class="alert alert-error"><span id="input-error">Ungültiger Benutzername oder ungültiges Passwort.</span></div>
+  <form id="kc-form-login" action="https://login.hs-heilbronn.de/realms/hhn/login-actions/authenticate?session_code=abc123&amp;execution=e1&amp;client_id=hhn_common_ilias&amp;tab_id=t1" method="post">
+    <input type="hidden" name="client_id" value="hhn_common_ilias"/>
+    <input type="hidden" name="credentialId" value=""/>
+    <input type="text" name="username"/>
+    <input type="password" name="password"/>
+  </form>
+</div>
+</body>
+</html>

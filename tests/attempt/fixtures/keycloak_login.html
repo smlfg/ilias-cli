@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><title>Anmelden - Keycloak</title></head>
+<body>
+<div id="kc-content">
+  <form id="kc-form-login" action="https://login.hs-heilbronn.de/realms/hhn/login-actions/authenticate?session_code=abc123&amp;execution=e1&amp;client_id=hhn_common_ilias&amp;tab_id=t1" method="post">
+    <input type="hidden" name="client_id" value="hhn_common_ilias"/>
+    <input type="hidden" name="tab_id" value="t1"/>
+    <input type="hidden" name="credentialId" value=""/>
+    <input type="text" name="username"/>
+    <input type="password" name="password"/>
+    <button type="submit">Anmelden</button>
+  </form>
+</div>
+</body>
+</html>

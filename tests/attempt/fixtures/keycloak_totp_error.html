@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head><title>Zwei-Faktor-Authentifizierung</title></head>
+<body>
+<div id="kc-content">
+  <div class="alert alert-error"><span id="input-error">Ungültiger Authenticator-Code.</span></div>
+  <form id="kc-otp-login-form" action="https://login.hs-heilbronn.de/realms/hhn/login-actions/authenticate?session_code=abc123&amp;execution=e2&amp;client_id=hhn_common_ilias&amp;tab_id=t1" method="post">
+    <input type="hidden" name="client_id" value="hhn_common_ilias"/>
+    <input type="text" name="otp" id="otp"/>
+  </form>
+</div>
+</body>
+</html>
