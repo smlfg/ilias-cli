@@ -2,9 +2,10 @@
 
 Quellen und Vorrang (höher schlägt niedriger):
   1. CLI-Argumente (``--instance``, ``--base-url``)
-  2. ``config.toml`` im Konfigurationsverzeichnis
-  3. eingebautes Instanz-Profil (z. B. ``hs-mannheim``)
-  4. Defaults (HHN ILIAS)
+  2. ``[instances.<name>]`` in ``config.toml`` (für die gewählte Instanz)
+  3. flache Schlüssel in ``config.toml`` (``base_url``, ``lms``)
+  4. eingebautes Instanz-Profil (z. B. ``hs-mannheim``)
+  5. Defaults (HHN ILIAS)
 
 Konfigurationsverzeichnis: ``$ILIAS_CLI_CONFIG_DIR`` sonst ``~/.config/ilias-cli``.
 Geschrieben wird nur in dieses Verzeichnis, nie ins Arbeitsverzeichnis.
@@ -88,15 +89,32 @@ def load_config(
 
     profile_name = instance or data.get("instance")
     profile: dict[str, str] = BUILTIN_INSTANCES.get(profile_name, {}) if profile_name else {}
+    instances = data.get("instances")
+    instance_data: dict[str, str] = (
+        instances.get(profile_name, {}) if isinstance(instances, dict) and profile_name else {}
+    )
+    if not isinstance(instance_data, dict):
+        instance_data = {}
 
-    lms = str(data.get("lms") or profile.get("lms") or "ilias").lower()
+    lms = str(
+        instance_data.get("lms")
+        or data.get("lms")
+        or profile.get("lms")
+        or "ilias"
+    ).lower()
     resolved_base = (
         base_url
+        or instance_data.get("base_url")
         or data.get("base_url")
         or profile.get("base_url")
         or DEFAULT_ILIAS_BASE_URL
     ).rstrip("/")
-    client_id = data.get("client_id") or profile.get("client_id") or DEFAULT_ILIAS_CLIENT_ID
+    client_id = (
+        instance_data.get("client_id")
+        or data.get("client_id")
+        or profile.get("client_id")
+        or DEFAULT_ILIAS_CLIENT_ID
+    )
 
     name = profile_name or _host_of(resolved_base)
     return InstanceConfig(

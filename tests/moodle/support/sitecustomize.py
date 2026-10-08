@@ -47,10 +47,13 @@ _orig_connect_ex = socket.socket.connect_ex
 
 
 def _check_addr(sock, address):
-    if sock.family in (socket.AF_INET, socket.AF_INET6) and isinstance(address, tuple):
-        if not _is_loopback(address[0]):
-            _record(f"connect {address[0]}:{address[1]}")
-            raise ConnectionRefusedError(f"moodle sandbox: connection to {address[0]} blocked")
+    if (
+        sock.family in (socket.AF_INET, socket.AF_INET6)
+        and isinstance(address, tuple)
+        and not _is_loopback(address[0])
+    ):
+        _record(f"connect {address[0]}:{address[1]}")
+        raise ConnectionRefusedError(f"moodle sandbox: connection to {address[0]} blocked")
 
 
 def _guarded_connect(self, address):

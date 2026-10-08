@@ -7,6 +7,7 @@ Rechten 0600 angelegt wird. Der Token wird nie geloggt oder ausgegeben.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 
@@ -57,7 +58,7 @@ class TokenStore:
             import keyring
 
             return keyring.get_password(SERVICE_NAME, self._username)
-        except Exception:
+        except Exception:  # noqa: BLE001 - Keyring kann beliebige Backend-Fehler werfen
             return None
 
     def _keyring_set(self, token: str) -> bool:
@@ -66,16 +67,14 @@ class TokenStore:
 
             keyring.set_password(SERVICE_NAME, self._username, token)
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - Keyring kann beliebige Backend-Fehler werfen
             return False
 
     def _keyring_delete(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             import keyring
 
             keyring.delete_password(SERVICE_NAME, self._username)
-        except Exception:
-            pass
 
     # -- Datei-Fallback --------------------------------------------------
     def _write_file(self, token: str) -> None:

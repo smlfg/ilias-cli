@@ -19,7 +19,12 @@ from typing import Any
 import httpx
 
 from ..config import InstanceConfig
-from ..errors import AuthError, NetworkError, SessionExpiredError, UnexpectedResponseError
+from ..errors import (
+    AuthError,
+    NetworkError,
+    SessionExpiredError,
+    UnexpectedResponseError,
+)
 from ..models import SiteInfo
 
 USER_AGENT = "ilias-cli/0.1.0"

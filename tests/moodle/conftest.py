@@ -170,6 +170,7 @@ class Harness:
                 cwd=self.cwd,
                 timeout=timeout,
                 start_new_session=True,
+                check=False,
             )
             result = RunResult(tuple(args), proc.returncode, proc.stdout, proc.stderr)
         except subprocess.TimeoutExpired as exc:

@@ -14,7 +14,7 @@ try:  # Europe/Berlin aus der System-Zeitzonendatenbank
     from zoneinfo import ZoneInfo
 
     BERLIN_TZ: timezone | ZoneInfo = ZoneInfo("Europe/Berlin")
-except Exception:  # pragma: no cover - Fallback ohne tzdata (z. B. Windows)
+except Exception:  # noqa: BLE001  # pragma: no cover - Fallback ohne tzdata (z. B. Windows)
     BERLIN_TZ = timezone(timedelta(hours=1), "Europe/Berlin")
 
 

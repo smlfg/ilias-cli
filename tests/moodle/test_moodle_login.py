@@ -7,12 +7,14 @@ JSON-Formen und die Secret-Hygiene (A1/A4).
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 
-from .conftest import PASSWORD, USERNAME, Harness, file_mode, free_port
+from .conftest import PASSWORD, SUPPORT_DIR, USERNAME, Harness, file_mode, free_port
 
 TOKEN_ENDPOINT = "/login/token.php"
 REST_ENDPOINT = "/webservice/rest/server.php"
@@ -210,7 +212,7 @@ def test_json_shapes(h: Harness):
     logout = h.run("logout", "--json")
     assert logout.exit_code == 0
     ldata = logout.json()
-    assert set(("lms", "instance", "base_url", "removed", "logged_out_at")).issubset(ldata)
+    assert {"lms", "instance", "base_url", "removed", "logged_out_at"}.issubset(ldata)
     _assert_iso_berlin(ldata["logged_out_at"])
 
 
@@ -307,3 +309,90 @@ def test_default_profile_is_ilias(tmp_path):
     cfg = load_config(config_path=tmp_path / "missing.toml")
     assert cfg.lms == "ilias"
     assert cfg.base_url == "https://ilias.hs-heilbronn.de"
+
+
+def test_instance_section_overrides_flat_config(h: Harness):
+    """[instances.<key>] base_url/lms gewinnt gegen die flachen Werte."""
+    (h.config_dir / "config.toml").write_text(
+        'instance = "hs-mannheim"\n'
+        'lms = "ilias"\n'
+        f'base_url = "http://127.0.0.1:{free_port()}"\n'
+        "\n"
+        "[instances.hs-mannheim]\n"
+        'lms = "moodle"\n'
+        f'base_url = "{h.world.base_url}"\n',
+        encoding="utf-8",
+    )
+    r = h.login()
+    assert r.exit_code == 0, str(r)
+    assert h.run("status").exit_code == 0
+
+
+def test_instance_section_without_builtin_profile(tmp_path):
+    """Auch ohne eingebautes Profil greift [instances.<key>]."""
+    from ilias_core.config import load_config
+
+    path = tmp_path / "config.toml"
+    path.write_text(
+        'instance = "custom-moodle"\n'
+        "[instances.custom-moodle]\n"
+        'lms = "moodle"\n'
+        'base_url = "http://127.0.0.1:12345"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(config_path=path)
+    assert cfg.lms == "moodle"
+    assert cfg.base_url == "http://127.0.0.1:12345"
+
+
+# ---------------------------------------------------------------- Sandbox
+_SANDBOX_GETADDRINFO = "import socket\nsocket.getaddrinfo('sandbox-blocked.invalid', 443)\n"
+_SANDBOX_CONNECT = (
+    "import socket\n"
+    "s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
+    "s.connect(('203.0.113.1', 443))\n"
+)
+
+
+def _run_sandboxed(script: str, net_log: Path) -> subprocess.CompletedProcess:
+    env = dict(os.environ)
+    env.update(
+        {
+            "PYTHONPATH": str(SUPPORT_DIR),
+            "ACCEPTANCE_SANDBOX": "1",
+            "ACCEPTANCE_NET_LOG": str(net_log),
+        }
+    )
+    return subprocess.run(
+        [sys.executable, "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_sandbox_blocks_non_loopback_dns(tmp_path):
+    """sitecustomize verhindert DNS zu Nicht-Loopback und protokolliert es."""
+    net_log = tmp_path / "net-blocked.log"
+    proc = _run_sandboxed(_SANDBOX_GETADDRINFO, net_log)
+    assert proc.returncode != 0, proc.stdout
+    assert "sandbox" in proc.stderr
+    assert "getaddrinfo sandbox-blocked.invalid" in net_log.read_text(encoding="utf-8")
+
+
+def test_sandbox_blocks_non_loopback_connect(tmp_path):
+    """sitecustomize blockiert TCP-Verbindungen zu Nicht-Loopback."""
+    net_log = tmp_path / "net-blocked.log"
+    proc = _run_sandboxed(_SANDBOX_CONNECT, net_log)
+    assert proc.returncode != 0, proc.stdout
+    assert "sandbox" in proc.stderr
+    assert "connect 203.0.113.1:443" in net_log.read_text(encoding="utf-8")
+
+
+def test_sandbox_allows_loopback(tmp_path):
+    net_log = tmp_path / "net-blocked.log"
+    script = "import socket\nprint(socket.getaddrinfo('127.0.0.1', 80)[0][4])\n"
+    proc = _run_sandboxed(script, net_log)
+    assert proc.returncode == 0, proc.stderr
+    assert not net_log.exists()

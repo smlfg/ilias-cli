@@ -17,6 +17,7 @@ werden (siehe real-fixtures/NOTES.md):
 
 from __future__ import annotations
 
+import contextlib
 import json
 import secrets
 import threading
@@ -64,7 +65,7 @@ class FakeMoodle:
     def base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
 
-    def start(self) -> "FakeMoodle":
+    def start(self) -> FakeMoodle:
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), _make_handler(self))
         self._server.daemon_threads = True
         self.port = self._server.server_address[1]
@@ -73,11 +74,9 @@ class FakeMoodle:
 
     def stop(self) -> None:
         if self._server is not None:
-            try:
+            with contextlib.suppress(OSError, RuntimeError):
                 self._server.shutdown()
                 self._server.server_close()
-            except Exception:
-                pass
 
     def requests_to(self, path: str) -> list[RecordedRequest]:
         return [r for r in self.requests if r.path == path]

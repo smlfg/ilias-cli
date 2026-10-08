@@ -8,8 +8,6 @@ Unterstützt ILIAS (Platzhalter) und Moodle. Beispiel:
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
 from ilias_core.auth import AuthService
@@ -44,7 +42,7 @@ def _json(data: dict) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-def _service(instance: Optional[str], base_url: Optional[str]) -> AuthService:
+def _service(instance: str | None, base_url: str | None) -> AuthService:
     config = load_config(instance=instance, base_url=base_url)
     if not config.is_moodle:
         raise IliasCliError(
@@ -56,8 +54,8 @@ def _service(instance: Optional[str], base_url: Optional[str]) -> AuthService:
 
 @app.command()
 def login(
-    instance: Optional[str] = typer.Option(None, "--instance", "-i", help=_INSTANCE_HELP),
-    base_url: Optional[str] = typer.Option(None, "--base-url", help=_BASE_URL_HELP),
+    instance: str | None = typer.Option(None, "--instance", "-i", help=_INSTANCE_HELP),
+    base_url: str | None = typer.Option(None, "--base-url", help=_BASE_URL_HELP),
     json_output: bool = typer.Option(False, "--json", help="Maschinenlesbare Ausgabe."),
 ) -> None:
     """Anmelden und Token speichern (Passwort verdeckt)."""
@@ -86,8 +84,8 @@ def login(
 
 @app.command()
 def status(
-    instance: Optional[str] = typer.Option(None, "--instance", "-i", help=_INSTANCE_HELP),
-    base_url: Optional[str] = typer.Option(None, "--base-url", help=_BASE_URL_HELP),
+    instance: str | None = typer.Option(None, "--instance", "-i", help=_INSTANCE_HELP),
+    base_url: str | None = typer.Option(None, "--base-url", help=_BASE_URL_HELP),
     json_output: bool = typer.Option(False, "--json", help="Maschinenlesbare Ausgabe."),
 ) -> None:
     """Gespeicherte Sitzung prüfen."""
@@ -109,8 +107,8 @@ def status(
 
 @app.command()
 def logout(
-    instance: Optional[str] = typer.Option(None, "--instance", "-i", help=_INSTANCE_HELP),
-    base_url: Optional[str] = typer.Option(None, "--base-url", help=_BASE_URL_HELP),
+    instance: str | None = typer.Option(None, "--instance", "-i", help=_INSTANCE_HELP),
+    base_url: str | None = typer.Option(None, "--base-url", help=_BASE_URL_HELP),
     json_output: bool = typer.Option(False, "--json", help="Maschinenlesbare Ausgabe."),
 ) -> None:
     """Gespeicherten Token lokal löschen."""
