@@ -114,7 +114,7 @@ def print_moodle_logout(result: LogoutResult) -> None:
 
 
 # ------------------------------------------------------------- F2: Kurse
-def _courses_table(result: CoursesResult) -> Table:
+def _courses_table_moodle(result: CoursesResult) -> Table:
     table = Table(title=f"Kurse ({result.instance}, {result.lms})", header_style="bold")
     table.add_column("ID", justify="right", no_wrap=True)
     table.add_column("Kurzname", no_wrap=True)
@@ -130,8 +130,33 @@ def _courses_table(result: CoursesResult) -> Table:
     return table
 
 
+def _courses_table_ilias(result: CoursesResult) -> Table:
+    table = Table(title=f"Kurse ({result.instance}, {result.lms})", header_style="bold")
+    table.add_column("ID (ref_id)", justify="right", no_wrap=True)
+    table.add_column("Typ", no_wrap=True)
+    table.add_column("Titel")
+    table.add_column("Semester", no_wrap=True)
+    for course in result.courses:
+        # Typ aus URL extrahieren (/go/crs/<ref> -> crs)
+        typ = ""
+        if "/go/crs/" in course.url:
+            typ = "crs"
+        elif "/go/grp/" in course.url:
+            typ = "grp"
+        table.add_row(
+            str(course.id),
+            escape(typ),
+            escape(course.fullname),
+            escape(course.semester or "—"),
+        )
+    return table
+
+
 def print_courses(result: CoursesResult) -> None:
-    out_console.print(_courses_table(result))
+    if result.lms == "ilias":
+        out_console.print(_courses_table_ilias(result))
+    else:
+        out_console.print(_courses_table_moodle(result))
     out_console.print(f"[dim]{len(result.courses)} Kurs(e) · {result.timestamp}[/dim]")
 
 

@@ -210,7 +210,7 @@ class ErrorResult:
 # --------------------------------------------------------------- F2/F3: Kurse
 @dataclass(frozen=True)
 class Course:
-    """Ein Kurs aus core_enrol_get_users_courses (Moodle-REST)."""
+    """Ein Kurs aus core_enrol_get_users_courses (Moodle-REST) oder ILIAS-Mitgliedschaft."""
 
     id: int
     fullname: str
@@ -221,9 +221,11 @@ class Course:
     startdate: str | None = None
     enddate: str | None = None
     url: str = ""
+    type: str | None = None  # ILIAS: "crs" | "grp", Moodle: None
+    description: str = ""  # ILIAS: Beschreibungstext für Kursnummer-Suche in ls
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
+        data = {
             "id": self.id,
             "fullname": self.fullname,
             "shortname": self.shortname,
@@ -234,6 +236,11 @@ class Course:
             "enddate": self.enddate,
             "url": self.url,
         }
+        if self.type is not None:
+            data["type"] = self.type
+        if self.description:
+            data["description"] = self.description
+        return data
 
     def to_ref_dict(self) -> dict[str, Any]:
         return {"id": self.id, "fullname": self.fullname, "shortname": self.shortname}
