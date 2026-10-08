@@ -210,7 +210,7 @@ class ErrorResult:
 # --------------------------------------------------------------- F2/F3: Kurse
 @dataclass(frozen=True)
 class Course:
-    """Ein Kurs aus core_enrol_get_users_courses (Moodle-REST)."""
+    """Ein Kurs aus core_enrol_get_users_courses (Moodle-REST) oder ILIAS-Mitgliedschaft."""
 
     id: int
     fullname: str
@@ -221,6 +221,7 @@ class Course:
     startdate: str | None = None
     enddate: str | None = None
     url: str = ""
+    description: str = ""
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
@@ -233,6 +234,7 @@ class Course:
             "startdate": self.startdate,
             "enddate": self.enddate,
             "url": self.url,
+            "description": self.description,
         }
 
     def to_ref_dict(self) -> dict[str, Any]:
@@ -261,51 +263,122 @@ class CoursesResult:
 
 
 @dataclass(frozen=True)
-class FolderNode:
+class ContentNodeBase:
+    """Basisklasse für alle Inhalts-Knoten (Ordner, Dateien, Links, Items, etc.)."""
+
+    def to_json_dict(self) -> dict[str, Any]:
+        # Alle Felder serialisieren, None-Werte weglassen
+        return {k: v for k, v in self.__dict__.items() if v is not None}
+
+
+@dataclass(frozen=True)
+class FolderNode(ContentNodeBase):
     name: str
     path: str
-    children: list[ContentNode] = field(default_factory=list)
+    ref_id: int | None = None
+    url: str | None = None
+    visible: bool = True
+    children: list["ContentNodeBase"] = field(default_factory=list)
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
             "type": "folder",
             "name": self.name,
             "path": self.path,
+            "ref_id": self.ref_id,
+            "url": self.url,
+            "visible": self.visible,
             "children": [child.to_json_dict() for child in self.children],
         }
 
 
 @dataclass(frozen=True)
-class FileNode:
+class FileNode(ContentNodeBase):
     name: str
     path: str
     fileurl: str
+    ref_id: int | None = None
     size: int | None = None
+    size_text: str | None = None
+    suffix: str | None = None
     mimetype: str | None = None
     timemodified: str | None = None
+    visible: bool = True
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
-            "type": "file",
-            "name": self.name,
-            "path": self.path,
-            "size": self.size,
-            "mimetype": self.mimetype,
-            "timemodified": self.timemodified,
-            "fileurl": self.fileurl,
-        }
+        d = {"type": "file"}
+        for k, v in self.__dict__.items():
+            if v is not None:
+                d[k] = v
+        return d
 
 
 @dataclass(frozen=True)
-class UrlNode:
+class UrlNode(ContentNodeBase):
     name: str
     url: str
+    ref_id: int | None = None
+    visible: bool = True
+    target_url: str | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {"type": "url", "name": self.name, "url": self.url}
+        d = {"type": "url"}
+        for k, v in self.__dict__.items():
+            if v is not None:
+                d[k] = v
+        return d
 
 
-ContentNode = FolderNode | FileNode | UrlNode
+@dataclass(frozen=True)
+class ItemNode(ContentNodeBase):
+    """Generisches Item (Übung, Test, Forum, Wiki, etc.)."""
+    name: str
+    modname: str  # exc, tst, frm, wiki, etc.
+    ref_id: int | None = None
+    url: str | None = None
+    visible: bool = True
+
+    def to_json_dict(self) -> dict[str, Any]:
+        d = {"type": "item", "modname": self.modname}
+        for k, v in self.__dict__.items():
+            if v is not None and k != "modname":
+                d[k] = v
+        return d
+
+
+@dataclass(frozen=True)
+class CourseLinkNode(ContentNodeBase):
+    name: str
+    ref_id: int
+    url: str
+    target_ref_id: int
+    visible: bool = True
+
+    def to_json_dict(self) -> dict[str, Any]:
+        d = {"type": "course_link"}
+        for k, v in self.__dict__.items():
+            if v is not None:
+                d[k] = v
+        return d
+
+
+@dataclass(frozen=True)
+class SessionNode(ContentNodeBase):
+    name: str
+    ref_id: int
+    url: str
+    visible: bool = True
+    children: None = None  # Spec §13.6: sessions nicht expandieren
+
+    def to_json_dict(self) -> dict[str, Any]:
+        d = {"type": "session", "children": None}
+        for k, v in self.__dict__.items():
+            if v is not None and k != "children":
+                d[k] = v
+        return d
+
+
+ContentNode = FolderNode | FileNode | UrlNode | ItemNode | CourseLinkNode | SessionNode
 
 
 @dataclass(frozen=True)
@@ -317,9 +390,14 @@ class Module:
     visible: bool = True
     uservisible: bool = True
     availability: str | None = None
-    children: list[ContentNode] = field(default_factory=list)
+    children: list[ContentNode] | None = field(default_factory=list)
 
     def to_json_dict(self) -> dict[str, Any]:
+        children = self.children
+        if children is None:
+            children_json = None
+        else:
+            children_json = [child.to_json_dict() for child in children]
         return {
             "id": self.id,
             "name": self.name,
@@ -328,7 +406,7 @@ class Module:
             "visible": self.visible,
             "uservisible": self.uservisible,
             "availability": self.availability,
-            "children": [child.to_json_dict() for child in self.children],
+            "children": children_json,
         }
 
 

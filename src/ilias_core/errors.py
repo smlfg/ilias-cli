@@ -113,3 +113,17 @@ class CourseAmbiguousError(IliasError):
 
     exit_code = EXIT_AUTH
     code = "course_ambiguous"
+
+
+class PermissionDeniedError(IliasError):
+    """Keine Berechtigung für das Objekt (Exit-Code 1)."""
+
+    exit_code = EXIT_AUTH
+    code = "permission_denied"
+
+
+class CrawlLimitError(IliasError):
+    """Request-Limit erreicht (Exit-Code 5)."""
+
+    exit_code = EXIT_PARSE
+    code = "crawl_limit"

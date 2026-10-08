@@ -78,6 +78,9 @@ def resolve_course(courses: list[Course], query: str) -> Course:
 
     Ein exakter Kurzname/Name schlägt einen bloßen Teilstring. Kein Treffer ->
     `CourseNotFoundError`, mehrere -> `CourseAmbiguousError` (Exit 1).
+
+    Für ILIAS: Eine Zahl, die keine ref_id einer Mitgliedschaft ist, wird als
+    **Kursnummer** gesucht: erst im Titel, dann in der Beschreibung (Spec §13.1).
     """
     text = (query or "").strip()
     if not text:
@@ -85,26 +88,55 @@ def resolve_course(courses: list[Course], query: str) -> Course:
             "Kein Kurs angegeben.",
             hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
         )
+
+    # Zuerst: exakte ref_id (id) suchen
     if text.isdigit():
         target = int(text)
         for course in courses:
             if course.id == target:
                 return course
+
+        # Keine ref_id gefunden -> als Kursnummer im Titel suchen (case-insensitive, NFC)
+        import unicodedata
+        needle_nfc = unicodedata.normalize("NFC", text)
+        for course in courses:
+            fullname_nfc = unicodedata.normalize("NFC", course.fullname)
+            if needle_nfc in fullname_nfc:
+                return course
+
+        # Dann in der Beschreibung suchen
+        for course in courses:
+            if course.description and needle_nfc in unicodedata.normalize("NFC", course.description):
+                return course
+
+        # Kein Treffer als Kursnummer
+        raise CourseNotFoundError(
+            f"Kein Kurs passt auf {text!r}.",
+            hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
+        )
+
+    # Text-Suche (case-insensitive, NFC-normalisiert)
+    import unicodedata
     needle = text.lower()
-    matches = [
-        course
-        for course in courses
-        if needle in course.fullname.lower() or needle in course.shortname.lower()
-    ]
+    needle_nfc = unicodedata.normalize("NFC", needle)
+    matches = []
+    for course in courses:
+        fullname_nfc = unicodedata.normalize("NFC", course.fullname).lower()
+        shortname_nfc = unicodedata.normalize("NFC", course.shortname).lower()
+        if needle_nfc in fullname_nfc or needle_nfc in shortname_nfc:
+            matches.append(course)
+
     if not matches:
         raise CourseNotFoundError(
             f"Kein Kurs passt auf {text!r}.",
             hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
         )
+
     exact = [
         course
         for course in matches
-        if course.shortname.lower() == needle or course.fullname.lower() == needle
+        if unicodedata.normalize("NFC", course.shortname).lower() == needle_nfc
+        or unicodedata.normalize("NFC", course.fullname).lower() == needle_nfc
     ]
     pool = exact or matches
     if len(pool) == 1:
