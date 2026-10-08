@@ -226,6 +226,11 @@ def test_courses_username_in_human_output(h: Harness):
 
 
 # ------------------------------------------------------------------ ILIAS
+@pytest.mark.xfail(
+    strict=True,
+    reason="HHN S7/S8: ILIAS courses/ls sind jetzt implementiert (supports_courses=True); "
+    "dieser Test prüft das entfernte 'not supported'-Verhalten. Vom Integrationslauf zu entfernen.",
+)
 def test_ilias_backend_courses_not_supported():
     """F2/F3 für ILIAS: klarer NotSupported-Fehler statt Absturz."""
     backend = IliasBackend(Instance("hhn", "ilias", "https://ilias.example.org"))

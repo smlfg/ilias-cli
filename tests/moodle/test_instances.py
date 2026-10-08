@@ -155,6 +155,11 @@ def test_moodle_logout_without_session_succeeds(config_env):
     assert result.instance == "hs-mannheim" and result.lms == "moodle"
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="HHN S7/S8: ILIAS courses/ls sind jetzt implementiert (supports_courses=True); "
+    "dieser Test prüft das entfernte 'not supported'-Verhalten. Vom Integrationslauf zu entfernen.",
+)
 def test_ilias_backend_courses_and_ls_are_not_supported(config_env):
     """ILIAS kann (seit PR #6) einloggen, aber courses/ls gibt es nur für Moodle."""
     backend = open_service("hhn").backend

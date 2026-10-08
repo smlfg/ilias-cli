@@ -22,6 +22,7 @@ from ilias_core.models import (
     CoursesResult,
     FileNode,
     FolderNode,
+    ItemNode,
     LoginResult,
     LogoutResult,
     MoodleLoginResult,
@@ -157,6 +158,24 @@ _MODULE_LABELS = {
     "h5pactivity": "🎮 H5P",
     "bigbluebuttonbn": "🎥 BigBlueButton",
     "data": "🗄️ Datenbank",
+    # ILIAS-Typkürzel (Spec §6.2/§13.3)
+    "fold": "📁 Ordner",
+    "file": "📄 Datei",
+    "webr": "🔗 Link",
+    "exc": "📝 Übung",
+    "tst": "❓ Test",
+    "frm": "💬 Forum",
+    "sess": "📅 Sitzung",
+    "crsr": "🔗 Kurslink",
+    "itgr": "📦 Objektgruppe",
+    "crs": "🎓 Kurs",
+    "grp": "👥 Gruppe",
+    "lm": "📘 Lernmodul",
+    "htlm": "📘 Lernmodul (HTML)",
+    "copa": "📦 Content-Page",
+    "mcst": "📦 Mediencast",
+    "blog": "📝 Blog",
+    "cat": "📂 Kategorie",
 }
 
 _DEFAULT_SECTION_RE = re.compile(
@@ -192,7 +211,7 @@ def _module_label(module) -> str:
 
 
 def _url_target(module) -> str | None:
-    for child in module.children:
+    for child in module.children or []:
         if isinstance(child, UrlNode):
             return child.url
     return None
@@ -206,15 +225,22 @@ def _url_label(module) -> str:
     return f"🔗 {name}{arrow}{_marks(module.visible, module.uservisible, module.availability)}"
 
 
-def _render_children(branch: Tree, children: list) -> None:
-    for child in children:
+def _offline_mark(visible: bool) -> str:
+    return f" {escape('[offline]')}" if not visible else ""
+
+
+def _render_children(branch: Tree, children: list | None) -> None:
+    for child in children or []:
         if isinstance(child, FolderNode):
-            sub = branch.add(f"📁 {escape(child.name)}")
+            sub = branch.add(f"📁 {escape(child.name)}{_offline_mark(child.visible)}")
             _render_children(sub, child.children)
         elif isinstance(child, FileNode):
             size = _human_size(child.size)
             suffix = f" [dim]({size})[/dim]" if size else ""
-            branch.add(f"📄 {escape(child.name)}{suffix}")
+            branch.add(f"📄 {escape(child.name)}{suffix}{_offline_mark(child.visible)}")
+        elif isinstance(child, ItemNode):
+            label = _MODULE_LABELS.get(child.modname, f"📦 {child.modname or 'Objekt'}")
+            branch.add(f"{label}: {escape(child.name)}{_offline_mark(child.visible)}")
         elif isinstance(child, UrlNode):
             branch.add(f"🔗 {escape(child.name)} → {escape(child.url)}")
 

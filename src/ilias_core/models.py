@@ -221,9 +221,13 @@ class Course:
     startdate: str | None = None
     enddate: str | None = None
     url: str = ""
+    #: ILIAS-Objekttyp (``crs``/``grp``); Moodle lässt das leer.
+    type: str = ""
+    #: Beschreibung (nur ILIAS; für die Kursnummern-Suche in ``resolve_course``).
+    description: str = ""
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "id": self.id,
             "fullname": self.fullname,
             "shortname": self.shortname,
@@ -234,6 +238,9 @@ class Course:
             "enddate": self.enddate,
             "url": self.url,
         }
+        if self.type:
+            data["type"] = self.type
+        return data
 
     def to_ref_dict(self) -> dict[str, Any]:
         return {"id": self.id, "fullname": self.fullname, "shortname": self.shortname}
@@ -265,12 +272,16 @@ class FolderNode:
     name: str
     path: str
     children: list[ContentNode] = field(default_factory=list)
+    ref_id: int | None = None
+    visible: bool = True
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
             "type": "folder",
             "name": self.name,
             "path": self.path,
+            "ref_id": self.ref_id,
+            "visible": self.visible,
             "children": [child.to_json_dict() for child in self.children],
         }
 
@@ -283,16 +294,24 @@ class FileNode:
     size: int | None = None
     mimetype: str | None = None
     timemodified: str | None = None
+    ref_id: int | None = None
+    suffix: str | None = None
+    size_text: str | None = None
+    visible: bool = True
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
             "type": "file",
             "name": self.name,
             "path": self.path,
+            "ref_id": self.ref_id,
             "size": self.size,
+            "size_text": self.size_text,
+            "suffix": self.suffix,
             "mimetype": self.mimetype,
             "timemodified": self.timemodified,
             "fileurl": self.fileurl,
+            "visible": self.visible,
         }
 
 
@@ -305,7 +324,32 @@ class UrlNode:
         return {"type": "url", "name": self.name, "url": self.url}
 
 
-ContentNode = FolderNode | FileNode | UrlNode
+@dataclass(frozen=True)
+class ItemNode:
+    """Nicht-Datei/Ordner-Objekt innerhalb eines Ordners (Übung, Test, Forum …)."""
+
+    name: str
+    modname: str
+    ref_id: int | None = None
+    url: str | None = None
+    visible: bool = True
+    children: list[ContentNode] | None = None
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": "item",
+            "name": self.name,
+            "modname": self.modname,
+            "ref_id": self.ref_id,
+            "url": self.url,
+            "visible": self.visible,
+            "children": (
+                None if self.children is None else [child.to_json_dict() for child in self.children]
+            ),
+        }
+
+
+ContentNode = FolderNode | FileNode | UrlNode | ItemNode
 
 
 @dataclass(frozen=True)
@@ -317,10 +361,18 @@ class Module:
     visible: bool = True
     uservisible: bool = True
     availability: str | None = None
-    children: list[ContentNode] = field(default_factory=list)
+    #: ``None`` bedeutet "nicht aufgeklappt" (ILIAS-Sitzungen/Kurslinks).
+    children: list[ContentNode] | None = field(default_factory=list)
+    #: Datei-Eigenschaften nur an ILIAS-Datei-Modulen (Moodle lässt sie leer).
+    size: int | None = None
+    size_text: str | None = None
+    suffix: str | None = None
+    mimetype: str | None = None
+    timemodified: str | None = None
+    fileurl: str | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "id": self.id,
             "name": self.name,
             "modname": self.modname,
@@ -328,8 +380,15 @@ class Module:
             "visible": self.visible,
             "uservisible": self.uservisible,
             "availability": self.availability,
-            "children": [child.to_json_dict() for child in self.children],
+            "children": (
+                None if self.children is None else [child.to_json_dict() for child in self.children]
+            ),
         }
+        for key in ("size", "size_text", "suffix", "mimetype", "timemodified", "fileurl"):
+            value = getattr(self, key)
+            if value is not None:
+                data[key] = value
+        return data
 
 
 @dataclass(frozen=True)

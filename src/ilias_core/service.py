@@ -7,6 +7,7 @@ Baums nach `--depth` gehören hierher, nicht in die CLI (ANFORDERUNGEN.md §1).
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
@@ -63,7 +64,7 @@ class Service:
             # sofort die passende "nicht unterstützt"-Meldung für ls (nicht die von courses)
             self.backend.course_contents(0)
         course = resolve_course(self.backend.courses(), query)
-        sections = trim_sections(self.backend.course_contents(course.id), depth)
+        sections = trim_sections(self.backend.course_contents(course.id, depth), depth)
         return CourseContentsResult(
             instance=self.instance.key,
             lms=self.instance.lms,
@@ -76,10 +77,12 @@ class Service:
 def resolve_course(courses: list[Course], query: str) -> Course:
     """Kurs per ID oder (case-insensitivem) Teilstring von fullname/shortname finden.
 
-    Ein exakter Kurzname/Name schlägt einen bloßen Teilstring. Kein Treffer ->
+    Eine Zahl, die keine ref_id einer Mitgliedschaft ist, wird als **Kursnummer**
+    gesucht: erst im Titel, dann in der Beschreibung (ILIAS, Spec §13.1). Ein
+    exakter Kurzname/Name schlägt einen bloßen Teilstring. Kein Treffer ->
     `CourseNotFoundError`, mehrere -> `CourseAmbiguousError` (Exit 1).
     """
-    text = (query or "").strip()
+    text = unicodedata.normalize("NFC", (query or "").strip())
     if not text:
         raise CourseNotFoundError(
             "Kein Kurs angegeben.",
@@ -90,11 +93,17 @@ def resolve_course(courses: list[Course], query: str) -> Course:
         for course in courses:
             if course.id == target:
                 return course
+        matches = _course_number_matches(courses, text)
+        if len(matches) == 1:
+            return matches[0]
+        if matches:
+            return _ambiguous(text, matches, kind="Kursnummern")
     needle = text.lower()
     matches = [
         course
         for course in courses
-        if needle in course.fullname.lower() or needle in course.shortname.lower()
+        if needle in unicodedata.normalize("NFC", course.fullname).lower()
+        or needle in unicodedata.normalize("NFC", course.shortname).lower()
     ]
     if not matches:
         raise CourseNotFoundError(
@@ -104,14 +113,28 @@ def resolve_course(courses: list[Course], query: str) -> Course:
     exact = [
         course
         for course in matches
-        if course.shortname.lower() == needle or course.fullname.lower() == needle
+        if unicodedata.normalize("NFC", course.shortname).lower() == needle
+        or unicodedata.normalize("NFC", course.fullname).lower() == needle
     ]
     pool = exact or matches
     if len(pool) == 1:
         return pool[0]
+    return _ambiguous(text, pool)
+
+
+def _course_number_matches(courses: list[Course], number: str) -> list[Course]:
+    """Kursnummer-Suche: erst im Titel, dann in der Beschreibung (Spec §13.1)."""
+
+    title_matches = [course for course in courses if number in unicodedata.normalize("NFC", course.fullname)]
+    if title_matches:
+        return title_matches
+    return [course for course in courses if number in unicodedata.normalize("NFC", course.description)]
+
+
+def _ambiguous(text: str, pool: list[Course], *, kind: str = "Kurse") -> Course:
     listing = ", ".join(f"{c.id} ({c.shortname}: {c.fullname})" for c in pool)
     raise CourseAmbiguousError(
-        f"Mehrere Kurse passen auf {text!r}: {listing}.",
+        f"Mehrere {kind} passen auf {text!r}: {listing}.",
         hint="Eindeutige Kurs-ID oder einen exakten Kurznamen angeben.",
         candidates=[course.to_ref_dict() for course in pool],
     )
@@ -130,10 +153,12 @@ def trim_sections(sections: list[Section], depth: int | None) -> list[Section]:
             continue
         modules: list[Module] = []
         for module in section.modules:
-            children = module.children if depth >= 3 else []
-            modules.append(
-                replace(module, children=_trim_children(children, 3, depth))
-            )
+            if depth < 3:
+                modules.append(replace(module, children=[]))
+            elif module.children is None:
+                modules.append(module)
+            else:
+                modules.append(replace(module, children=_trim_children(module.children, 3, depth)))
         result.append(replace(section, modules=modules))
     return result
 

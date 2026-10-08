@@ -243,7 +243,8 @@ class MoodleBackend(Backend):
         return courses
 
     # -- F3: Kursinhalt --------------------------------------------------
-    def course_contents(self, course_id: int) -> list[Section]:
+    def course_contents(self, course_id: int, depth: int | None = None) -> list[Section]:
+        del depth  # Moodle liefert den ganzen Baum; Kürzen übernimmt trim_sections
         session = self._require_session()
         try:
             with HttpClient(self.base_url) as client:
