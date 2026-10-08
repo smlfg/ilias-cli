@@ -162,7 +162,21 @@ def login(
         otp_callback = prompts.ask_totp if backend.uses_totp else None
         return service.login(Credentials(username=user, password=Secret(password)), otp_callback)
 
-    _, result = _run("login", json_output, instance, debug, op)
+    try:
+        _, result = _run("login", json_output, instance, debug, op)
+    except KeyboardInterrupt:
+        if json_output:
+            from ilias_core.models import ErrorResult
+            output.print_json(ErrorResult(
+                command="login",
+                error_code="aborted",
+                error_type="AbortedError",
+                message="Abgebrochen, nichts gespeichert.",
+                exit_code=1,
+            ).to_json_dict())
+        else:
+            output.print_error("Abgebrochen, nichts gespeichert.")
+        raise typer.Exit(code=1)
     if isinstance(result, MoodleLoginResult):
         if json_output:
             output.print_json(result.to_json_dict())
@@ -263,6 +277,20 @@ def setup(
             result = run_setup(instance, username, json_output, is_tty)
         except typer.Exit:
             raise
+        except KeyboardInterrupt:
+            # Ctrl-C: exit 1 with "Abgebrochen, nichts gespeichert."
+            if json_output:
+                from ilias_core.models import ErrorResult
+                output.print_json(ErrorResult(
+                    command="setup",
+                    error_code="aborted",
+                    error_type="AbortedError",
+                    message="Abgebrochen, nichts gespeichert.",
+                    exit_code=1,
+                ).to_json_dict())
+            else:
+                output.print_error("Abgebrochen, nichts gespeichert.")
+            raise typer.Exit(code=1)
         except Exception as exc:  # noqa: BLE001
             from ilias_core.errors import IliasError
             raise _fail("setup", IliasError(str(exc)), json_output, None) from None
@@ -276,8 +304,8 @@ def setup(
                 "username": username,
                 "verified": True,
                 "session_stored": True,
-                "config_path": str(result.base_url),  # placeholder, actual path would be better
-                "timestamp": result.timestamp if hasattr(result, 'timestamp') else "",
+                "config_path": str(result.base_url),
+                "timestamp": getattr(result, 'timestamp', ''),
             })
         else:
             print(f"Eingerichtet: {result.instance} als {username}. Neue Eingabe erst nötig, wenn die Session abläuft.")
