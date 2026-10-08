@@ -80,6 +80,13 @@ class ParserError(IliasError):
     code = "parse_error"
 
 
+class PermissionDeniedError(IliasError):
+    """Keine Berechtigung für das Objekt (oder unbekannte ref_id). Exit-Code 1."""
+
+    exit_code = EXIT_AUTH
+    code = "permission_denied"
+
+
 class BrowserUnavailableError(IliasError):
     """Das optionale Browser-Extra (Playwright) ist nicht verfügbar."""
 
