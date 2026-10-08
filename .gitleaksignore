@@ -1,0 +1,6 @@
+# gitleaks false positives (fingerprint = commit:file:rule:line).
+# Only add entries after checking the value is NOT a real secret; add a reason.
+# Fake test password in a test (not a real secret), main since d17f93e.
+d17f93e87df5c6333afeb0130665e87b86f55f7d:tests/attempt/test_cli.py:generic-api-key:103
+# Fake OTP "mysecretotp123" in a test on attempt/nemotron-3-ultra (not a real secret).
+05f9d295904085988e989dad2bb875a4f93b9a6d:tests/attempt/test_security.py:generic-api-key:131
