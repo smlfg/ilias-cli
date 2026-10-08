@@ -23,7 +23,17 @@ from ilias_core import (
     __version__,
     open_service,
 )
-from ilias_core.models import LoginResult, LogoutResult, StatusResult
+from ilias_core.models import (
+    LsFile,
+    LsFolder,
+    LsResult,
+    LsUrl,
+    LoginResult,
+    LogoutResult,
+    StatusResult,
+    Course,
+)
+from ilias_core.service import Service as ServiceCls
 
 app = typer.Typer(
     help="ilias-cli – Login/Status/Logout für ILIAS- und Moodle-Instanzen (Hochschulen).",

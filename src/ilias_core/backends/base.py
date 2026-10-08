@@ -5,7 +5,15 @@ from __future__ import annotations
 import abc
 
 from ..config import Instance
-from ..models import Credentials, LoginResult, LogoutResult, StatusResult
+from ..models import (
+    Credentials,
+    Course,
+    CourseSection,
+    ErrorResult,
+    LoginResult,
+    LogoutResult,
+    StatusResult,
+)
 
 
 class Backend(abc.ABC):
@@ -36,3 +44,11 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def logout(self) -> LogoutResult:
         """Lokale Session löschen."""
+
+    @abc.abstractmethod
+    def courses(self) -> list[Course]:
+        """Eigene Kurse auflisten (Moodle nur)."""
+
+    @abc.abstractmethod
+    def course_contents(self, course_id: int) -> list[CourseSection]:
+        """Inhalt eines Kurses als Abschnitt-Liste holen (Moodle nur)."""

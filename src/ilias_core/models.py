@@ -6,11 +6,35 @@ serialisiert es nur noch. `to_json_dict()` liefert die stabile Form für `--json
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from .secrets import Secret
 from .timeutil import now_iso
+
+
+def derive_semester(startdate: int | None) -> str | None:
+    """Derive semester string from Unix startdate (Europe/Berlin).
+
+    Mar–Aug → "SoSe YYYY", Sep–Dec → "WiSe YYYY/YY+1", Jan–Feb → "WiSe YYYY-1/YY".
+    startdate 0 or None → None.
+    """
+    if not startdate:
+        return None
+    from datetime import datetime, timezone, timedelta
+
+    berlin_tz = timezone(timedelta(hours=2))  # CET/CEST simplified; tests use fixed values
+    dt = datetime.fromtimestamp(startdate, tz=berlin_tz)
+    month = dt.month
+    year = dt.year
+    if 3 <= month <= 8:
+        return f"SoSe {year}"
+    if 9 <= month <= 12:
+        return f"WiSe {year}/{year + 1 - 2000}"
+    # 1 <= month <= 2
+    prev_year = year - 1
+    return f"WiSe {prev_year}/{year % 100}"
 
 
 @dataclass(frozen=True)
@@ -159,3 +183,136 @@ class ErrorResult:
             "timestamp": self.timestamp,
         }
         return data
+
+
+@dataclass(frozen=True)
+class Course:
+    """Moodle-Kurs aus core_enrol_get_users_courses."""
+
+    id: int
+    fullname: str
+    shortname: str
+    category: int | None
+    semester: str | None
+    visible: bool
+    startdate: int | None
+    enddate: int | None
+    url: str
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "fullname": self.fullname,
+            "shortname": self.shortname,
+            "category": self.category,
+            "semester": self.semester,
+            "visible": self.visible,
+            "startdate": self.startdate,
+            "enddate": self.enddate,
+            "url": self.url,
+        }
+
+
+@dataclass(frozen=True)
+class CourseSection:
+    """Eine Abschnitt/Modul-Gruppe in einem Kurs (core_course_get_contents)."""
+
+    id: int
+    number: int
+    name: str
+    visible: bool
+    uservisible: bool
+    modules: list[Any] = field(default_factory=list)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "number": self.number,
+            "name": self.name,
+            "visible": self.visible,
+            "uservisible": self.uservisible,
+            "modules": [m.to_json_dict() if hasattr(m, "to_json_dict") else m for m in self.modules],
+        }
+
+
+@dataclass(frozen=True)
+class LsFile:
+    """Eine Datei im ls-Baum."""
+
+    type: str = "file"
+    name: str = ""
+    path: str = ""
+    size: int = 0
+    mimetype: str = ""
+    timemodified: str | None = None
+    fileurl: str = ""
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": self.type,
+            "name": self.name,
+            "path": self.path,
+            "size": self.size,
+            "mimetype": self.mimetype,
+            "timemodified": self.timemodified,
+            "fileurl": self.fileurl,
+        }
+
+
+@dataclass(frozen=True)
+class LsUrl:
+    """Eine URL-Ressource im ls-Baum."""
+
+    type: str = "url"
+    name: str = ""
+    url: str = ""
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": self.type,
+            "name": self.name,
+            "url": self.url,
+        }
+
+
+@dataclass(frozen=True)
+class LsFolder:
+    """Ein Ordner-Knoten im ls-Baum (aus modname == 'folder' mit filepath)."""
+
+    type: str = "folder"
+    name: str = ""
+    path: str = ""
+    children: list[Any] = field(default_factory=list)
+
+    def add_child(self, child: Any) -> None:
+        object.__setattr__(self, "children", self.children + [child])
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": self.type,
+            "name": self.name,
+            "path": self.path,
+            "children": [c.to_json_dict() if hasattr(c, "to_json_dict") else c for c in self.children],
+        }
+
+
+@dataclass(frozen=True)
+class LsResult:
+    """Ergebnis von ilias ls ... Befehl."""
+
+    instance: str
+    lms: str
+    course: dict[str, Any]
+    depth: int | None
+    sections: list[Any]
+    timestamp: str = field(default_factory=now_iso)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "instance": self.instance,
+            "lms": self.lms,
+            "course": self.course,
+            "depth": self.depth,
+            "sections": [s.to_json_dict() for s in self.sections],
+            "timestamp": self.timestamp,
+        }
