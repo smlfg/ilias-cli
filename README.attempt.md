@@ -30,7 +30,8 @@ uv run playwright install chromium
 ## Befehle
 
 ```bash
-uv run ilias login                 # OIDC-Login (Benutzername, verdecktes Passwort, TOTP)
+uv run ilias login                 # HHN: OIDC-Login (Benutzername, verdecktes Passwort, TOTP)
+uv run ilias login --instance uni-mannheim   # SAML/Shibboleth (Uni-ID, Passwort, kein TOTP)
 uv run ilias login --json          # maschinenlesbare Ausgabe
 uv run ilias login --browser       # sichtbarer Browser, Nutzer loggt sich selbst ein
 uv run ilias status                # prüft die gespeicherte Session
@@ -38,6 +39,11 @@ uv run ilias status --json
 uv run ilias logout                # löscht die gespeicherte Session
 uv run ilias logout --json
 ```
+
+Alle Befehle kennen `--instance <name>` und `--debug` (sicheres Log auf stderr:
+URLs ohne Query-Werte außer Routing-Parametern, Statuscodes, Formularfeld-Namen;
+nie Werte, Passwörter oder Cookies). Anleitung für den ersten echten Test:
+[REAL_TEST.md](REAL_TEST.md).
 
 ### Exit-Codes
 
@@ -57,13 +63,28 @@ Exit-Code 3 und **keinen** automatischen Re-Login.
 
 Es gilt `~/.config/ilias-cli/config.toml`:
 
+Eingebaute Instanz-Profile:
+
+| Instanz | Basis-URL | client_id | auth |
+|---|---|---|---|
+| `hhn` (Default) | `https://ilias.hs-heilbronn.de` | `iliashhn` | `oidc-keycloak` |
+| `uni-mannheim` | `https://ilias.uni-mannheim.de` | `ILIAS` | `saml-shibboleth` |
+
 ```toml
-base_url = "https://ilias.hs-heilbronn.de"  # HHN-Default
-client_id = "iliashhn"                       # HHN-Default
+instance = "uni-mannheim"     # aktive Instanz (sonst hhn); --instance hat Vorrang
+base_url = "https://..."      # überschreibt Werte der aktiven Instanz
+client_id = "..."
+auth = "saml-shibboleth"      # oder "oidc-keycloak"
+
+[instances.meine-uni]         # Overrides pro Instanz oder eigene Instanz
+base_url = "https://ilias.example.org"
+client_id = "ILIAS"
+auth = "saml-shibboleth"
 ```
 
+Schlüssel auf oberster Ebene gelten nur für die Instanz aus `instance`.
 Der Ordner lässt sich per Umgebungsvariable `ILIAS_CLI_CONFIG_DIR` (z. B. für
-Tests) überschreiben. Basis-URL und Client-ID sind nicht hart kodiert.
+Tests) überschreiben. Sessions werden pro Instanz gespeichert.
 
 ## Sicherheit (A1–A6)
 
@@ -72,17 +93,24 @@ Tests) überschreiben. Basis-URL und Client-ID sind nicht hart kodiert.
   Es gibt kein `--password`-Flag.
 - **A2** Der TOTP-Code wird interaktiv abgefragt. Ein TOTP-Secret wird nie
   gespeichert.
-- **A3** Headless-Login per `httpx`: `openidconnect.php` → Keycloak-Formular
-  (action + alle hidden inputs) → `POST username/password` → ggf. TOTP →
-  Redirects zurück zu ILIAS → Session-Cookies. Fallback `--browser` (Playwright,
-  optionales Extra, lazy importiert). Fehlerfälle (falsches Passwort/TOTP,
-  unerwartetes HTML) werden klar unterschieden.
+- **A3** Headless-Login per `httpx`, Adapter je nach `auth`:
+  - `oidc-keycloak`: `openidconnect.php` → Keycloak-Formular (action + alle
+    hidden inputs) → `POST username/password` → ggf. TOTP → Redirects zu ILIAS.
+  - `saml-shibboleth`: `saml.php` → IdP `form#login-form` (`csrf_token`) →
+    `POST j_username/j_password/_eventId_proceed` → ggf. Attributfreigabe
+    (vorausgewählte Option) → Auto-Submit-Formular mit `SAMLResponse` → ILIAS.
+
+  Erfolg wird erst gemeldet (und gespeichert), wenn die Redirect-Kette bei ILIAS
+  endet, das Session-Cookie neu ist und das Dashboard nicht auf `login.php`
+  umleitet und einen Abmelde-Link zeigt. Fallback `--browser` (Playwright,
+  sichtbar, optionales Extra), danach dieselbe Dashboard-Prüfung.
 - **A4** Cookies liegen im OS-Schlüsselbund (`keyring`). Ohne Schlüsselbund
-  Fallback in `~/.config/ilias-cli/session.json` mit Rechten `0600`. Cookies
-  werden nie geloggt oder ausgegeben – auch nicht bei `status --json`.
-- **A5** `status` prüft eine geschützte ILIAS-Seite
-  (`ilias.php?baseClass=ilDashboardGUI`). Redirect auf `login.php` oder ein
-  Login-Formular ⇒ Exit 3. Kein automatischer Re-Login.
+  Fallback in `~/.config/ilias-cli/session-<instanz>.json` mit Rechten `0600`.
+  Nur ILIAS-Cookies, keine IdP-Cookies (Keycloak, `shib_idp_session`, `JSESSIONID`).
+  Cookies werden nie geloggt oder ausgegeben – auch nicht bei `status --json`.
+- **A5** `status` prüft `ilias.php?baseClass=ilDashboardGUI`. Redirect auf
+  `login.php`, Login-Seite oder IdP ⇒ Exit 3; Seite ohne Login-Merkmal ⇒ Exit 5.
+  Kein automatischer Re-Login.
 - **A6** Session pro Gerät, kein Cookie-Sync.
 
 Der User-Agent ist `ilias-cli/<version>`, die Timeouts sind begrenzt.
@@ -93,9 +121,11 @@ Der User-Agent ist `ilias-cli/<version>`, die Timeouts sind begrenzt.
 uv run pytest -q
 ```
 
-Alle Tests laufen ohne echte Netzwerkzugriffe (`respx` bzw. `httpx.MockTransport`)
-und mit realistischen HTML-Fixtures unter `tests/fixtures/`. Der Schlüsselbund
-wird in Tests durch ein In-Memory-Backend ersetzt.
+Alle Tests laufen ohne echte Netzwerkzugriffe: Unit-Tests unter `tests/attempt`
+mit `respx` und einer Loopback-Sperre, Subprozess-Tests unter `tests/acceptance`
+gegen lokale Fake-Server (Keycloak bzw. Shibboleth-IdP + ILIAS) mit Netzwerk-Sandbox.
+Die SAML-Fakes nutzen die echten, anonym erfassten Seiten unter
+`tests/fixtures/uni-mannheim/`.
 
 ## Lizenz
 

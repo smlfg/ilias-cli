@@ -208,7 +208,7 @@ IDP_GARBAGE_HTML = """<!DOCTYPE html><html><head><title>Wartungsarbeiten</title>
 
 def ilias_dashboard(world: FakeShibWorld, with_marker: bool = True) -> str:
     user_menu = (
-        f"""<ul class="il-maincontrols-metabar" role="menubar">
+        """<ul class="il-maincontrols-metabar" role="menubar">
    <li role="none"><button class="btn btn-bulky" id="il_ui_fw_user" role="menuitem" aria-haspopup="true"><span class="bulky-label">Benutzer</span></button>
      <ul class="il-maincontrols-slate"><li><a href="ilias.php?baseClass=ilDashboardGUI&amp;cmd=jumpToProfile">Profil und Privatsphäre</a></li>
      <li><a href="logout.php?lang=de">Abmelden</a></li></ul></li></ul>"""
