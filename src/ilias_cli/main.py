@@ -15,7 +15,7 @@ import typer
 
 from ilias_core import debuglog
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
-from ilias_core.errors import IliasError
+from ilias_core.errors import ConfigError, IliasError
 from ilias_core.models import (
     CourseContentsResult,
     CoursesResult,
@@ -29,6 +29,7 @@ from ilias_core.models import (
 )
 from ilias_core.secrets import Secret
 from ilias_core.service import Service, open_service
+from ilias_core import setup as setup_core
 
 from . import output, prompts
 
@@ -172,6 +173,45 @@ def login(
         output.print_json(result.to_dict())
     else:
         output.print_login(result)
+
+
+@app.command()
+def setup(
+    list_instances: bool = typer.Option(
+        False, "--list", help="Verfügbare Instanzen anzeigen (kein Login)."
+    ),
+    filter_text: str | None = typer.Option(
+        None, "--filter", help="Instanz-Liste filtern (case-insensitiver Teilstring)."
+    ),
+    instance: str | None = INSTANCE_OPTION,
+    username: str | None = typer.Option(
+        None, "--username", help="Benutzername (sonst aus config.toml oder Abfrage)."
+    ),
+    json_output: bool = JSON_OPTION,
+    debug: bool = DEBUG_OPTION,
+) -> None:
+    """Erst-Einrichtung: Instanz wählen, anmelden und Session speichern (Spec §3)."""
+
+    if list_instances:
+        infos = setup_core.list_instances(filter_text)
+        if json_output:
+            output.print_json({"instances": [info.to_json_dict() for info in infos]})
+        else:
+            output.print_instances(infos)
+        return
+
+    # Instanz prüfen (unbekannt -> Exit 1, kein Netz). Der geführte Login folgt in S2.
+    if instance is not None:
+        try:
+            open_service(instance)
+        except IliasError as exc:
+            raise _fail("setup", exc, json_output, None) from None
+    raise _fail(
+        "setup",
+        ConfigError("setup ist in diesem Schritt noch nicht verfügbar."),
+        json_output,
+        None,
+    )
 
 
 @app.command()

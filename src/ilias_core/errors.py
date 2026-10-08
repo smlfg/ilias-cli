@@ -94,6 +94,16 @@ class ConfigError(IliasError):
     code = "config_error"
 
 
+class AbortedError(IliasError):
+    """Abbruch durch Ctrl-C/Ctrl-D (EOF). Es wird nichts gespeichert (Spec §3.5)."""
+
+    exit_code = EXIT_AUTH
+    code = "aborted"
+
+    def __init__(self, message: str = "Abgebrochen, nichts gespeichert.") -> None:
+        super().__init__(message)
+
+
 class NotSupportedError(IliasError):
     """Funktion ist für dieses Backend (noch) nicht implementiert."""
 
