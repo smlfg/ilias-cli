@@ -11,7 +11,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ..client import IliasClient
-from ..errors import NotSupportedError
+from ..errors import NotSupportedError, ParserError
+from ..ilias_html.fetch import IliasFetcher
+from ..ilias_html.membership import parse_memberships
 from ..models import (
     Course,
     Credentials,
@@ -50,16 +52,31 @@ class IliasBackend(Backend):
         removed = self.client.logout()
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
 
-    supports_courses = False
+    supports_courses = True
 
     def courses(self) -> list[Course]:
-        raise NotSupportedError(
-            "Kursliste für ILIAS noch nicht implementiert.",
-            hint="Für Moodle: `ilias courses --instance hs-mannheim`.",
-        )
+        fetcher = IliasFetcher(self.client.config)
+        label = "Kursliste"
+        try:
+            html_text = fetcher.get_text("/ilias.php?baseClass=ilmembershipoverviewgui", label=label)
+        except ParserError:
+            raise
+        try:
+            courses = parse_memberships(html_text, self.client.config.normalized_base_url)
+        except ParserError as exc:
+            raise ParserError(
+                f"{exc.message} Seite: Mitgliedschaften (Meine Kurse und Gruppen), "
+                f"URL: {self.client.config.normalized_base_url}/ilias.php",
+                hint=(
+                    f"Erwartet wurde die Kursliste von `ilias courses --instance {self.instance.key}`. "
+                    "Evtl. Wartungsarbeiten oder ein geändertes HHN-Markup."
+                ),
+            ) from None
+        courses.sort(key=lambda course: course.sort_key())
+        return courses
 
     def course_contents(self, course_id: int) -> list[Section]:
         raise NotSupportedError(
             "Kursinhalt (ls) für ILIAS noch nicht implementiert.",
-            hint="Für Moodle: `ilias ls <kurs> --instance hs-mannheim`.",
+            hint=f"Noch nicht verfügbar: `ilias ls --instance {self.instance.key}`; für Moodle: `ilias ls <kurs> --instance hs-mannheim`.",
         )

@@ -116,6 +116,19 @@ def print_moodle_logout(result: LogoutResult) -> None:
 # ------------------------------------------------------------- F2: Kurse
 def _courses_table(result: CoursesResult) -> Table:
     table = Table(title=f"Kurse ({result.instance}, {result.lms})", header_style="bold")
+    if result.lms == "ilias":
+        table.add_column("ID (ref_id)", justify="right", no_wrap=True)
+        table.add_column("Typ", no_wrap=True)
+        table.add_column("Titel")
+        table.add_column("Semester", no_wrap=True)
+        for course in result.courses:
+            table.add_row(
+                str(course.id),
+                escape(course.course_type or ""),
+                escape(course.fullname),
+                escape(course.semester or "—"),
+            )
+        return table
     table.add_column("ID", justify="right", no_wrap=True)
     table.add_column("Kurzname", no_wrap=True)
     table.add_column("Name")

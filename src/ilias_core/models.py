@@ -221,9 +221,11 @@ class Course:
     startdate: str | None = None
     enddate: str | None = None
     url: str = ""
+    course_type: str | None = None  # ILIAS: "crs" | "grp" (JSON-Schlüssel "type")
+    description: str = ""  # ILIAS: Kurstexte, später für die Kursnummern-Suche in `ls`
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
+        data = {
             "id": self.id,
             "fullname": self.fullname,
             "shortname": self.shortname,
@@ -234,6 +236,11 @@ class Course:
             "enddate": self.enddate,
             "url": self.url,
         }
+        if self.course_type is not None:
+            data["type"] = self.course_type
+        if self.description:
+            data["description"] = self.description
+        return data
 
     def to_ref_dict(self) -> dict[str, Any]:
         return {"id": self.id, "fullname": self.fullname, "shortname": self.shortname}
