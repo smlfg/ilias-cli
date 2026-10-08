@@ -1,6 +1,6 @@
 [project]
 name = "ilias-cli"
-version = "0.0.0"
+version = "0.1.0"
 description = "ILIAS-CLI (HHN): Skeleton-Vertrag. Implementierungen liegen auf attempt/*-Branches."
 readme = "README.md"
 requires-python = ">=3.11"

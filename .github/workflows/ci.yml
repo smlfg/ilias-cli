@@ -27,6 +27,9 @@ jobs:
         if: always() && hashFiles('tests/attempt/**') != ''
         continue-on-error: true
         run: uv run pytest tests/attempt -q
+      - name: Moodle-Tests (lokaler Fake-Moodle, harte localhost-Sperre)
+        if: always() && hashFiles('tests/moodle/**') != ''
+        run: uv run pytest tests/moodle -q
       - uses: actions/upload-artifact@v4
         if: always()
         with:
