@@ -5,7 +5,14 @@ from __future__ import annotations
 import abc
 
 from ..config import Instance
-from ..models import Credentials, LoginResult, LogoutResult, StatusResult
+from ..models import (
+    Credentials,
+    Course,
+    LoginResult,
+    LogoutResult,
+    SectionInfo,
+    StatusResult,
+)
 
 
 class Backend(abc.ABC):
@@ -36,3 +43,11 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def logout(self) -> LogoutResult:
         """Lokale Session löschen."""
+
+    @abc.abstractmethod
+    def courses(self) -> list[Course]:
+        """Eigene Kurse des eingeloggten Benutzers (F2)."""
+
+    @abc.abstractmethod
+    def course_contents(self, course_id: int) -> list[SectionInfo]:
+        """Inhalt eines Kurses als Abschnitte mit Bausteinen (F3)."""

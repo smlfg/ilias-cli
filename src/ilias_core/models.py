@@ -143,12 +143,15 @@ class ErrorResult:
     hint: str | None = None
     instance: str | None = None
     lms: str | None = None
+    candidates: list[dict[str, Any]] | None = None
     timestamp: str = field(default_factory=now_iso)
 
     def to_json_dict(self) -> dict[str, Any]:
         error: dict[str, Any] = {"code": self.error_code, "message": self.message}
         if self.hint:
             error["hint"] = self.hint
+        if self.candidates is not None:
+            error["candidates"] = self.candidates
         data: dict[str, Any] = {
             "ok": False,
             "command": self.command,
@@ -159,3 +162,185 @@ class ErrorResult:
             "timestamp": self.timestamp,
         }
         return data
+
+
+# ------------------------------------------------------------------ F2/F3: Kurse und Inhalte (Moodle)
+
+
+@dataclass(frozen=True)
+class Course:
+    """Ein Moodle-Kurs aus `core_enrol_get_users_courses` (F2)."""
+
+    id: int
+    fullname: str
+    shortname: str
+    category: int | None = None
+    semester: str | None = None
+    visible: bool = True
+    startdate: str | None = None
+    enddate: str | None = None
+    url: str | None = None
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "fullname": self.fullname,
+            "shortname": self.shortname,
+            "category": self.category,
+            "semester": self.semester,
+            "visible": self.visible,
+            "startdate": self.startdate,
+            "enddate": self.enddate,
+            "url": self.url,
+        }
+
+    def candidate_dict(self) -> dict[str, Any]:
+        return {"id": self.id, "shortname": self.shortname, "fullname": self.fullname}
+
+
+@dataclass(frozen=True)
+class CoursesResult:
+    """Kursliste eines Benutzers (F2). Bereits sortiert: neuestes Semester zuerst."""
+
+    instance: str
+    lms: str
+    courses: tuple[Course, ...] = ()
+    timestamp: str = field(default_factory=now_iso)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "command": "courses",
+            "instance": self.instance,
+            "lms": self.lms,
+            "count": len(self.courses),
+            "courses": [c.to_json_dict() for c in self.courses],
+            "timestamp": self.timestamp,
+        }
+
+
+@dataclass(frozen=True)
+class FileChild:
+    """Datei in einem Modul (`type == "file"`)."""
+
+    type: str = "file"
+    name: str = ""
+    path: str = "/"
+    size: int | None = None
+    mimetype: str | None = None
+    timemodified: str | None = None
+    fileurl: str | None = None
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": "file",
+            "name": self.name,
+            "path": self.path,
+            "size": self.size,
+            "mimetype": self.mimetype,
+            "timemodified": self.timemodified,
+            "fileurl": self.fileurl,
+        }
+
+
+@dataclass(frozen=True)
+class FolderChild:
+    """Verschachtelter Ordner aus `filepath` eines `folder`-Moduls."""
+
+    name: str = ""
+    path: str = "/"
+    children: tuple[Any, ...] = ()
+    type: str = "folder"
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "type": "folder",
+            "name": self.name,
+            "path": self.path,
+            "children": [c.to_json_dict() for c in self.children],
+        }
+
+
+@dataclass(frozen=True)
+class UrlChild:
+    """Externer Link aus einem `url`-Modul."""
+
+    name: str = ""
+    url: str | None = None
+    type: str = "url"
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {"type": "url", "name": self.name, "url": self.url}
+
+
+@dataclass(frozen=True)
+class ModuleInfo:
+    """Ein Kursbaustein (Aktivität/Arbeitsmaterial) mit verschachtelten Kindern."""
+
+    id: int = 0
+    name: str = ""
+    modname: str = ""
+    url: str | None = None
+    visible: bool = True
+    uservisible: bool = True
+    availability: str | None = None
+    children: tuple[Any, ...] = ()
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "modname": self.modname,
+            "url": self.url,
+            "visible": self.visible,
+            "uservisible": self.uservisible,
+            "availability": self.availability,
+            "children": [c.to_json_dict() for c in self.children],
+        }
+
+
+@dataclass(frozen=True)
+class SectionInfo:
+    """Ein Kursabschnitt mit seinen Bausteinen."""
+
+    id: int = 0
+    number: int = 0
+    name: str = ""
+    visible: bool = True
+    uservisible: bool = True
+    modules: tuple[ModuleInfo, ...] = ()
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "number": self.number,
+            "name": self.name,
+            "visible": self.visible,
+            "uservisible": self.uservisible,
+            "modules": [m.to_json_dict() for m in self.modules],
+        }
+
+
+@dataclass(frozen=True)
+class LsResult:
+    """Kursinhalt als Baum: Kurs -> Abschnitte -> Bausteine -> Dateien/Ordner (F3)."""
+
+    instance: str = ""
+    lms: str = ""
+    course: Course | None = None
+    depth: int | None = None
+    sections: tuple[SectionInfo, ...] = ()
+    timestamp: str = field(default_factory=now_iso)
+
+    def to_json_dict(self) -> dict[str, Any]:
+        course = self.course
+        return {
+            "ok": True,
+            "command": "ls",
+            "instance": self.instance,
+            "lms": self.lms,
+            "course": course.candidate_dict() if course else None,
+            "depth": self.depth,
+            "sections": [s.to_json_dict() for s in self.sections],
+            "timestamp": self.timestamp,
+        }
