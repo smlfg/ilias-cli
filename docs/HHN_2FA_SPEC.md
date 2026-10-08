@@ -33,7 +33,7 @@ Aus `smlfg/agent-learnings` `rules/AGENTS.md` und den Runden F1–F3:
 | L9 | Spec vor dem Start **gegen echte Daten prüfen**: Semester-Regel SoSe = März–August, WiSe = September–Februar. Alles, was nur live prüfbar ist, ist hier mit [L] markiert. | §5.3, §9 |
 | L10 | Ausgaben: HTML-Entities dekodieren, jedes Objekt genau einmal, Titel/URLs nie abschneiden (Lehre aus dem Moodle-Live-Test 6363). | `test_ls_no_duplicate_entries_and_entities` |
 
-Architektur [M]: Logik in `ilias_core` (Backend + Service, Rückgabe als Dataclass), CLI nur Hülle. Nach `integrate/moodle` gibt es `Backend.courses()` und `Backend.course_contents(ref_id)`; das ILIAS-Backend liefert dort bisher `NotSupportedError`. Diese Runde ersetzt genau diese zwei Methoden für `lms = "ilias"` und ergänzt `setup`.
+Architektur [M]: Logik in `ilias_core` (Backend + Service, Rückgabe als Dataclass), CLI nur Hülle. Seit PR #20 (`integrate/moodle`) gibt es auf `main` `Backend.courses()` und `Backend.course_contents(ref_id)`; das ILIAS-Backend liefert dort bisher `NotSupportedError`. Diese Runde ersetzt genau diese zwei Methoden für `lms = "ilias"` und ergänzt `setup`.
 
 ## 2. Was öffentlich bekannt ist [V]
 
@@ -195,7 +195,7 @@ Commit-Nachricht: `HHN S<n>: <Thema> (<modell>) – tests/hhn: X passed / Y fail
 
 | Schritt | Inhalt | Grün werden müssen (`HHN_STRICT=1`) |
 |---|---|---|
-| S0 | Basis: Branch ab `main` nach Merge von `integrate/moodle`; `uv run pytest tests/acceptance tests/moodle` grün, `tests/hhn` läuft (alles rot/xfail). | – |
+| S0 | Basis: Branch ab `main` (enthält seit PR #20 `integrate/moodle`: ILIAS + Moodle in einer Codebasis); `uv run pytest tests/acceptance tests/moodle` grün, `tests/hhn` läuft (alles rot/xfail). | – |
 | S1 | `setup --list/--filter` + Instanz-Metadaten (`name`, `requires_totp`, Stadt) als reine Kernfunktion | `test_setup_help_no_secret_flags`, `test_setup_list_instances_json`, `test_setup_filter_like_autocomplete[*]`, `test_setup_unknown_instance_exit1` |
 | S2 | `setup` nicht interaktiv: stdin-Eingaben, Login über vorhandenen Adapter, Config atomar mergen, Username-Default | `test_setup_hhn_success_stores_session_and_config`, `test_setup_username_default_from_config`, `test_setup_no_tty_without_*`, `test_env_password_never_used`, `test_setup_uni_mannheim_no_totp` |
 | S3 | Abbruch + Fehlversuche (EOF, SIGINT, Passwort 1×, Code 3×) in `setup` **und** `login` | `test_setup_wrong_password_exit1_no_retry`, `test_setup_totp_*`, `test_setup_eof_*`, `test_setup_sigint_is_abort`; `tests/acceptance` bleibt grün |
@@ -211,7 +211,7 @@ Danach Live-Test durch IliasCLI/MCP mit `loop/test_hhn.sh` (Samuel tippt einmal 
 ## 11. Tests in diesem Branch
 - `tests/hhn/fake_hhn.py`: erweitert den Keycloak-+TOTP-Fake von `main` um „Meine Kurse und Gruppen“, Kurs-/Ordnerseiten, `goto.php`-Redirects und Fehlermodi (`membership_mode`, `container_modes`: `error500`, `garbage`, `login_redirect`). Alle Kurse, Dateien und Titel sind ausgedacht (ref_ids 900101 ff.).
 - `tests/hhn/test_courses_ls.py` (34 Tests), `tests/hhn/test_setup.py` (21 Tests).
-- Ohne `HHN_STRICT=1` sind alle als `xfail` markiert (CI auf `main` bleibt grün). Stand auf diesem Branch: **55 xfailed**, mit `HHN_STRICT=1` **55 failed** (Befehle fehlen noch), ruff sauber.
+- Ohne `HHN_STRICT=1` sind alle als `xfail` markiert (CI auf `main` bleibt grün). Stand auf diesem Branch (mit `main` inkl. PR #20 zusammengeführt): **53 xfailed, 2 xpassed** (nur die Hilfetexte von `courses`/`ls` gibt es schon), mit `HHN_STRICT=1` **53 failed, 2 passed**. Die Fehlschläge sind die erwarteten: `courses`/`ls` für `hhn` antworten mit `not_supported` (Exit 1), `setup` fehlt. ruff sauber, `tests/acceptance` unverändert grün.
 
 ## 12. Live-Test (nicht im Repo)
 Das Live-Skript liegt bewusst **außerhalb** des öffentlichen Repos (bei IliasCLI/MCP unter `loop/test_hhn.sh`, Ground-Truth `loop/truth/hhn_courses.json`, Auswertung `loop/check_hhn.py`). Ablauf:
