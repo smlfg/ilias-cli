@@ -15,6 +15,7 @@ Ablauf:
 
 from __future__ import annotations
 
+import html
 import re
 import time
 from typing import Any
@@ -83,17 +84,28 @@ def _as_text(value: object) -> str:
     return ""
 
 
+def _text(value: object) -> str:
+    """Servertext säubern: HTML-Entities dekodieren (z. B. `&gt;`, `&amp;`)."""
+    return html.unescape(_as_text(value))
+
+
 def _as_int(value: object) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value
 
 
+def _natural_key(text: str) -> list[object]:
+    """Natürliche, case-insensitive Sortierung: `blatt2` vor `blatt10`."""
+    return [int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", text)]
+
+
 def _plain_text(text: str, limit: int | None = None) -> str:
-    """HTML entfernen, Whitespace normalisieren, optional kürzen (label/availability)."""
+    """HTML entfernen, Entities dekodieren, Whitespace normalisieren, optional kürzen."""
     if not text:
         return ""
     cleaned = _WHITESPACE_RE.sub(" ", _HTML_TAG_RE.sub(" ", text)).strip()
+    cleaned = html.unescape(cleaned)
     if limit is not None and len(cleaned) > limit:
         cleaned = cleaned[:limit].rstrip() + "…"
     return cleaned
@@ -102,7 +114,7 @@ def _plain_text(text: str, limit: int | None = None) -> str:
 def _file_node(content: dict[str, Any]) -> FileNode:
     size = _as_int(content.get("filesize"))
     return FileNode(
-        name=_as_text(content.get("filename")) or "Datei",
+        name=_text(content.get("filename")) or "Datei",
         path=_as_text(content.get("filepath")) or "/",
         fileurl=_as_text(content.get("fileurl")),
         size=size,
@@ -133,22 +145,22 @@ def _folder_tree(contents: list[dict[str, Any]], prefix: str = "/") -> list[Any]
             order.append(segment)
         folders[segment].append(content)
     nodes: list[Any] = []
-    for segment in sorted(order):
+    for segment in sorted(order, key=_natural_key):
         sub = prefix + segment + "/"
         nodes.append(FolderNode(name=segment, path=sub, children=_folder_tree(folders[segment], sub)))
+    files.sort(key=lambda node: _natural_key(node.name))
     nodes.extend(files)
     return nodes
 
 
-def _children_from_contents(contents: list[dict[str, Any]]) -> list[Any]:
+def _children_from_contents(contents: list[dict[str, Any]], module_name: str = "") -> list[Any]:
     urls: list[Any] = []
     files: list[dict[str, Any]] = []
     for content in contents:
         ctype = content.get("type")
         if ctype == "url":
-            urls.append(
-                UrlNode(name=_as_text(content.get("filename")) or "Link", url=_as_text(content.get("fileurl")))
-            )
+            name = module_name or _text(content.get("filename")) or "Link"
+            urls.append(UrlNode(name=name, url=_as_text(content.get("fileurl"))))
         elif ctype == "file":
             files.append(content)
     return _folder_tree(files) + urls
@@ -298,8 +310,8 @@ class MoodleBackend(Backend):
         start = item.get("startdate")
         return Course(
             id=course_id,
-            fullname=_as_text(item.get("fullname")),
-            shortname=_as_text(item.get("shortname")),
+            fullname=_text(item.get("fullname")),
+            shortname=_text(item.get("shortname")),
             category=_as_int(item.get("category")),
             semester=semester_from_timestamp(start),
             visible=bool(item.get("visible", 1)),
@@ -319,7 +331,7 @@ class MoodleBackend(Backend):
         return Section(
             id=_as_int(item.get("id")) or 0,
             number=number if number is not None else index,
-            name=_as_text(item.get("name")),
+            name=_text(item.get("name")),
             visible=bool(item.get("visible", 1)),
             uservisible=bool(item.get("uservisible", True)),
             modules=modules,
@@ -327,7 +339,7 @@ class MoodleBackend(Backend):
 
     def _module_from_json(self, item: dict[str, Any]) -> Module:
         modname = _as_text(item.get("modname"))
-        name = _as_text(item.get("name"))
+        name = _text(item.get("name"))
         if modname == "label":
             name = _plain_text(name, limit=60)
         raw_contents = item.get("contents")
@@ -345,7 +357,7 @@ class MoodleBackend(Backend):
             visible=bool(item.get("visible", 1)),
             uservisible=bool(item.get("uservisible", True)),
             availability=availability,
-            children=_children_from_contents(contents),
+            children=_children_from_contents(contents, name),
         )
 
     def _request_token(self, client: HttpClient, credentials: Credentials) -> str:

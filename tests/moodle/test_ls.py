@@ -203,7 +203,82 @@ def test_ls_url_module(h: Harness):
     assert_logged_in(h)
     module = find_module(ls_json(h, str(COURSE_ID)), 9002)
     assert module["modname"] == "url"
-    assert module["children"] == [{"type": "url", "name": "Moodle-Doku", "url": "https://docs.moodle.org/"}]
+    # Bug 2: JSON nutzt den Modulnamen, nicht den (von Moodle beschnittenen) Dateinamen.
+    # Bug 3: `&amp;` ist dekodiert.
+    assert module["name"] == "Openbook Rheinwerk: C von A bis Z & Dienste"
+    assert module["children"] == [
+        {
+            "type": "url",
+            "name": "Openbook Rheinwerk: C von A bis Z & Dienste",
+            "url": LONG_URL,
+        }
+    ]
+
+
+LONG_URL = (
+    "https://openbook.rheinwerk-verlag.de/c_von_a_bis_z/001_c_einfuehrung_000.htm"
+    "?query=sehr-langer-parameter&weitere-informationen=noch-mehr-text-hier"
+)
+
+
+def test_ls_url_module_shown_exactly_once_in_tree(h: Harness):
+    """Bug 1: genau eine Link-Zeile `🔗 Modulname → URL`, keine Kindzeile."""
+    assert_logged_in(h)
+    result = h.run("ls", str(COURSE_ID), "--instance", INSTANCE)
+    assert result.exit_code == 0, str(result)
+    out = result.stdout
+    # Modulzeile mit Name + Pfeil + URL
+    assert "🔗 Openbook Rheinwerk: C von A bis Z & Dienste → " + LONG_URL in out, str(result)
+    assert out.count("Openbook Rheinwerk") == 1, str(result)
+    assert out.count("https://openbook.rheinwerk-verlag.de") == 1, str(result)
+
+
+def test_ls_long_url_not_truncated_at_columns_80(h: Harness):
+    """Bug 4: lange URL wird auch bei COLUMNS=80 vollständig gedruckt."""
+    assert_logged_in(h)
+    result = h.run("ls", str(COURSE_ID), "--instance", INSTANCE, env_extra={"COLUMNS": "80"})
+    assert result.exit_code == 0, str(result)
+    assert LONG_URL in result.stdout, str(result)
+    assert "…" not in result.stdout.split("Openbook")[1].split("\n")[0], str(result)
+
+
+# ------------------------------------------------------------------ Bug 3: Entities
+def test_ls_section_and_module_entities_decoded(h: Harness):
+    assert_logged_in(h)
+    data = ls_json(h, str(COURSE_ID))
+    section = next(s for s in data["sections"] if s["id"] == 504)
+    assert section["name"] == "Altklausuren --> Archiv & Mehr"
+    module = find_module(data, 9002)
+    assert module["name"] == "Openbook Rheinwerk: C von A bis Z & Dienste"
+    for text in (section["name"], module["name"]):
+        assert "&amp;" not in text and "&gt;" not in text
+    # Dekodierter Name erscheint auch im Menschen-Text
+    result = h.run("ls", str(COURSE_ID), "--instance", INSTANCE)
+    assert "Openbook Rheinwerk: C von A bis Z & Dienste" in result.stdout, str(result)
+
+
+def test_ls_file_name_entities_decoded(h: Harness):
+    assert_logged_in(h)
+    module = find_module(ls_json(h, str(COURSE_ID)), 9030)
+    names = [c["name"] for c in module["children"] if c["type"] == "file"]
+    assert "Blatt&1info.pdf" in names, names
+
+
+# ------------------------------------------------------------------ Bug 6: Sortierung/Labels
+def test_ls_files_sorted_naturally_case_insensitive(h: Harness):
+    assert_logged_in(h)
+    module = find_module(ls_json(h, str(COURSE_ID)), 9030)
+    names = [c["name"] for c in module["children"] if c["type"] == "file"]
+    assert names[:3] == ["Blatt1.pdf", "blatt2.pdf", "blatt10.pdf"], names
+    assert names.index("blatt2.pdf") < names.index("blatt10.pdf")
+
+
+def test_ls_german_module_labels(h: Harness):
+    assert_logged_in(h)
+    result = h.run("ls", str(COURSE_ID), "--instance", INSTANCE)
+    assert result.exit_code == 0, str(result)
+    assert "Terminplaner: Sprechstunde" in result.stdout, str(result)
+    assert "Feedback: Rückmeldung" in result.stdout, str(result)
 
 
 # ------------------------------------------------------------------ --depth
@@ -220,7 +295,7 @@ def test_ls_depth_2_modules_without_children(h: Harness):
     data = ls_json(h, str(COURSE_ID), "--depth", "2")
     assert data["depth"] == 2
     modules = [m for section in data["sections"] for m in section["modules"]]
-    assert len(modules) == 10
+    assert len(modules) == 13
     assert all(module["children"] == [] for module in modules)
 
 

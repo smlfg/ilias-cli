@@ -29,6 +29,13 @@ COURSES_FUNCTION = "core_enrol_get_users_courses"
 CONTENTS_FUNCTION = "core_course_get_contents"
 SITE_NAME = "Lernplattform TH-MA"
 
+# Bug 4: Link-URLs länger als eine Konsolenzeile (> 120 Zeichen); darf im Baum
+# niemals abgeschnitten werden.
+LONG_URL = (
+    "https://openbook.rheinwerk-verlag.de/c_von_a_bis_z/001_c_einfuehrung_000.htm"
+    "?query=sehr-langer-parameter&weitere-informationen=noch-mehr-text-hier"
+)
+
 MAINTENANCE_HTML = """<!DOCTYPE html><html lang="de"><head><title>Wartung | moodle</title></head>
 <body><h1>Wartungsarbeiten</h1><p>Der Moodle-Dienst ist vorübergehend nicht verfügbar.</p></body></html>"""
 
@@ -101,6 +108,39 @@ COURSES: list[dict] = [
         "startdate": 1790805600,
         "enddate": 1806357600,
         "timemodified": 1790000000,
+    },
+    # Bug 3 (HTML-Entities) + Bug 5 (Start im März -> SoSe)
+    {
+        "id": 106,
+        "shortname": "ENT&gt;1",
+        "fullname": "Dienste --&gt; Support &amp; Hilfe",
+        "visible": 1,
+        "category": 20,
+        "startdate": 1773615600,  # 2026-03-16 -> SoSe 2026
+        "enddate": 1788213600,
+        "timemodified": 1770000000,
+    },
+    # Bug 5: Start im September -> WiSe
+    {
+        "id": 107,
+        "shortname": "PHY-SEP24",
+        "fullname": "Physik Vorkurs",
+        "visible": 1,
+        "category": 20,
+        "startdate": 1727128800,  # 2024-09-24 -> WiSe 2024/25
+        "enddate": 1743458400,
+        "timemodified": 1700000000,
+    },
+    # Bug 5: Start im Januar -> WiSe des Vorjahres
+    {
+        "id": 108,
+        "shortname": "MI-JAN26",
+        "fullname": "Methoden der Informatik",
+        "visible": 1,
+        "category": 20,
+        "startdate": 1767999600,  # 2026-01-10 -> WiSe 2025/26
+        "enddate": 1788213600,
+        "timemodified": 1760000000,
     },
 ]
 
@@ -189,7 +229,10 @@ COURSE_CONTENTS: dict[int, list[dict]] = {
                 {
                     "id": 9002,
                     "url": "https://moodle.hs-mannheim.de/mod/url/view.php?id=9002",
-                    "name": "Moodle-Doku",
+                    # Bug 2: Modulname trägt die Satzzeichen; der Dateiname aus
+                    # `contents` ist von Moodle um `:`/`&` erleichtert.
+                    # Bug 3: `&amp;` muss dekodiert werden.
+                    "name": "Openbook Rheinwerk: C von A bis Z &amp; Dienste",
                     "visible": 1,
                     "uservisible": True,
                     "modname": "url",
@@ -197,10 +240,10 @@ COURSE_CONTENTS: dict[int, list[dict]] = {
                     "contents": [
                         {
                             "type": "url",
-                            "filename": "Moodle-Doku",
+                            "filename": "Openbook Rheinwerk C von A bis Z Dienste",
                             "filepath": "/",
                             "filesize": 0,
-                            "fileurl": "https://docs.moodle.org/",
+                            "fileurl": LONG_URL,
                             "timemodified": 1790800000,
                             "mimetype": "text/html",
                         }
@@ -261,6 +304,24 @@ COURSE_CONTENTS: dict[int, list[dict]] = {
                     "modname": "forum",
                     "modplural": "Foren",
                 },
+                {
+                    "id": 9013,
+                    "url": "https://moodle.hs-mannheim.de/mod/scheduler/view.php?id=9013",
+                    "name": "Sprechstunde",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "scheduler",
+                    "modplural": "Terminplaner",
+                },
+                {
+                    "id": 9014,
+                    "url": "https://moodle.hs-mannheim.de/mod/feedback/view.php?id=9014",
+                    "name": "Rückmeldung",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "feedback",
+                    "modplural": "Feedback",
+                },
             ],
         },
         {
@@ -273,7 +334,8 @@ COURSE_CONTENTS: dict[int, list[dict]] = {
         },
         {
             "id": 504,
-            "name": "Altklausuren",
+            # Bug 3: Entities im Abschnittsnamen
+            "name": "Altklausuren --&gt; Archiv &amp; Mehr",
             "visible": 1,
             "section": 3,
             "uservisible": True,
@@ -324,6 +386,52 @@ COURSE_CONTENTS: dict[int, list[dict]] = {
                     "uservisible": True,
                     "modname": "page",
                     "modplural": "Textseiten",
+                },
+                {
+                    # Bug 6: natürliche, case-insensitive Dateisortierung im Ordner
+                    # sowie Entity-Dekodierung eines Dateinamens.
+                    "id": 9030,
+                    "url": "https://moodle.hs-mannheim.de/mod/folder/view.php?id=9030",
+                    "name": "Natursortierung",
+                    "visible": 1,
+                    "uservisible": True,
+                    "modname": "folder",
+                    "modplural": "Verzeichnisse",
+                    "contents": [
+                        _file(
+                            "blatt10.pdf",
+                            "/",
+                            1024,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/779/mod_folder/content/0/blatt10.pdf?forcedownload=1",
+                            1791200000,
+                            "application/pdf",
+                        ),
+                        _file(
+                            "blatt2.pdf",
+                            "/",
+                            1024,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/779/mod_folder/content/0/blatt2.pdf?forcedownload=1",
+                            1791200000,
+                            "application/pdf",
+                        ),
+                        _file(
+                            "Blatt1.pdf",
+                            "/",
+                            1024,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/779/mod_folder/content/0/Blatt1.pdf?forcedownload=1",
+                            1791200000,
+                            "application/pdf",
+                        ),
+                        _file(
+                            "Blatt&amp;1info.pdf",
+                            "/",
+                            1024,
+                            "https://moodle.hs-mannheim.de/webservice/pluginfile.php/779/mod_folder/content/0/Blatt%261info.pdf?forcedownload=1",
+                            1791200000,
+                            "application/pdf",
+                        ),
+                    ],
+                    "contentsinfo": {"filescount": 4, "filessize": 4096},
                 },
             ],
         },

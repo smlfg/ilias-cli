@@ -17,7 +17,7 @@ from ilias_core.timeutil import semester_from_timestamp
 
 from .conftest import INSTANCE, USERNAME, Harness, RunResult
 
-EXPECTED_IDS = [103, 101, 105, 102, 104]  # WiSe zuerst, dann SoSe, None zuletzt
+EXPECTED_IDS = [103, 101, 105, 106, 102, 108, 107, 104]  # WiSe zuerst, dann SoSe, None zuletzt
 
 
 def assert_logged_in(h: Harness) -> RunResult:
@@ -42,15 +42,20 @@ def assert_error(result: RunResult, command: str, exit_code: int, code: str) -> 
     [
         (0, None),
         (None, None),
+        (1773615600, "SoSe 2026"),  # 2026-03-16 (März -> SoSe)
         (1774994400, "SoSe 2026"),  # 2026-04-01
+        (1788127200, "SoSe 2026"),  # 2026-08-31 (August -> SoSe)
+        (1788213600, "WiSe 2026/27"),  # 2026-09-01 (September -> WiSe)
         (1790805600, "WiSe 2026/27"),  # 2026-10-01
-        (1801436400, "WiSe 2026/27"),  # 2027-02-01 (Jan-Mrz)
-        (1759183200, "SoSe 2025"),  # 2025-09-30 (Sep -> SoSe)
+        (1759183200, "WiSe 2025/26"),  # 2025-09-30 (September -> WiSe)
+        (1727128800, "WiSe 2024/25"),  # 2024-09-24
+        (1801436400, "WiSe 2026/27"),  # 2027-02-01 (Februar -> WiSe Vorjahr)
+        (1767999600, "WiSe 2025/26"),  # 2026-01-10 (Januar -> WiSe Vorjahr)
         (1736895600, "WiSe 2024/25"),  # 2025-01-15
     ],
 )
 def test_semester_derivation_unit(timestamp, expected):
-    """F2: reine Funktion der Semesterableitung inkl. Jan-Mrz-Fall."""
+    """F2: reine Funktion der Semesterableitung inkl. der Grenzfälle Mrz/Aug/Sep/Jan."""
     assert semester_from_timestamp(timestamp) == expected
 
 
@@ -75,11 +80,11 @@ def test_courses_json_shape(h: Harness):
     data = result.json()
     assert set(data) == {"instance", "lms", "count", "courses", "timestamp"}, sorted(data)
     assert data["instance"] == INSTANCE and data["lms"] == "moodle"
-    assert data["count"] == len(data["courses"]) == 5
+    assert data["count"] == len(data["courses"]) == 8
     assert datetime.fromisoformat(data["timestamp"]).tzinfo is not None
 
     by_id = {course["id"]: course for course in data["courses"]}
-    assert set(by_id) == {101, 102, 103, 104, 105}
+    assert set(by_id) == {101, 102, 103, 104, 105, 106, 107, 108}
     for course in data["courses"]:
         assert set(course) == {
             "id",
@@ -107,6 +112,15 @@ def test_courses_json_shape(h: Harness):
     assert alt["semester"] is None
     assert alt["startdate"] is None
     assert alt["enddate"] is None
+
+    # Bug 5: Semesterregel (Mrz-Aug SoSe, Sep-Dez WiSe, Jan/Feb WiSe Vorjahr)
+    assert by_id[106]["semester"] == "SoSe 2026"  # Start 2026-03-16
+    assert by_id[107]["semester"] == "WiSe 2024/25"  # Start 2024-09-24
+    assert by_id[108]["semester"] == "WiSe 2025/26"  # Start 2026-01-10
+
+    # Bug 3: HTML-Entities werden in der Kernschicht dekodiert (auch im JSON)
+    assert by_id[106]["fullname"] == "Dienste --> Support & Hilfe"
+    assert by_id[106]["shortname"] == "ENT>1"
 
 
 def test_courses_sorted_newest_first_null_last(h: Harness):

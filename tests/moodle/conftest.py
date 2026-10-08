@@ -153,7 +153,16 @@ class Harness:
         )
         return env
 
-    def run(self, *args: str, stdin: str = "", timeout: float = 60) -> RunResult:
+    def run(
+        self,
+        *args: str,
+        stdin: str = "",
+        timeout: float = 60,
+        env_extra: dict[str, str] | None = None,
+    ) -> RunResult:
+        env = self.env()
+        if env_extra:
+            env.update(env_extra)
         try:
             proc = subprocess.run(
                 [ilias_executable(), *args],
@@ -162,7 +171,7 @@ class Harness:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                env=self.env(),
+                env=env,
                 cwd=self.cwd,
                 timeout=timeout,
                 start_new_session=True,  # kein Controlling-TTY -> Eingaben kommen aus stdin

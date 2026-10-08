@@ -39,10 +39,11 @@ def timestamp_to_iso(value: object) -> str | None:
 def semester_from_timestamp(value: object) -> str | None:
     """Semesterkennung aus dem Kurs-Startdatum in Europe/Berlin ableiten.
 
-    Apr-Sep -> ``SoSe YYYY`` · Okt-Dez -> ``WiSe YYYY/YY+1`` ·
-    Jan-Mrz -> ``WiSe YYYY-1/YY``. 0/fehlend -> None.
+    Mrz-Aug -> ``SoSe YYYY`` · Sep-Dez -> ``WiSe YYYY/YY+1`` ·
+    Jan-Feb -> ``WiSe YYYY-1/YY``. 0/fehlend -> None.
 
-    Beispiele: 2026-10-01 -> ``WiSe 2026/27`` · 2027-02-01 -> ``WiSe 2026/27``.
+    Beispiele: 2026-03-16 -> ``SoSe 2026`` · 2024-09-24 -> ``WiSe 2024/25`` ·
+    2026-01-10 -> ``WiSe 2025/26``.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
@@ -51,9 +52,9 @@ def semester_from_timestamp(value: object) -> str | None:
     moment = datetime.fromtimestamp(value, tz=_BERLIN)
     year = moment.year
     month = moment.month
-    if 4 <= month <= 9:
+    if 3 <= month <= 8:
         return f"SoSe {year}"
-    if month >= 10:
+    if month >= 9:
         return f"WiSe {year}/{str(year + 1)[-2:]}"
     return f"WiSe {year - 1}/{str(year)[-2:]}"
 

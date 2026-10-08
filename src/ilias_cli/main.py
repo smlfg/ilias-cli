@@ -233,8 +233,17 @@ _MODULE_LABELS = {
     "page": "📃 Seite",
     "label": "🏷️ Beschriftung",
     "choice": "🗳️ Abstimmung",
-    "lti": "🔌 LTI",
+    "lti": "🔌 Externes Tool",
     "book": "📖 Buch",
+    "scheduler": "📅 Terminplaner",
+    "feedback": "📋 Feedback",
+    "glossary": "📚 Glossar",
+    "wiki": "📖 Wiki",
+    "lesson": "📑 Lektion",
+    "workshop": "🤝 Gegenseitige Beurteilung",
+    "h5pactivity": "🎮 H5P",
+    "bigbluebuttonbn": "🎥 BigBlueButton",
+    "data": "🗄️ Datenbank",
 }
 
 _DEFAULT_SECTION_RE = re.compile(
@@ -269,6 +278,21 @@ def _module_label(module) -> str:
     return f"{label}: {name}{_marks(module.visible, module.uservisible, module.availability)}"
 
 
+def _url_target(module) -> str | None:
+    for child in module.children:
+        if isinstance(child, UrlNode):
+            return child.url
+    return None
+
+
+def _url_label(module) -> str:
+    """Ein Link-Modul als genau eine Zeile: 🔗 Modulname → URL."""
+    name = escape(module.name) if module.name else "(ohne Namen)"
+    target = _url_target(module)
+    arrow = f" → {escape(target)}" if target else ""
+    return f"🔗 {name}{arrow}{_marks(module.visible, module.uservisible, module.availability)}"
+
+
 def _render_children(branch: Tree, children: list) -> None:
     for child in children:
         if isinstance(child, FolderNode):
@@ -279,7 +303,7 @@ def _render_children(branch: Tree, children: list) -> None:
             suffix = f" [dim]({size})[/dim]" if size else ""
             branch.add(f"📄 {escape(child.name)}{suffix}")
         elif isinstance(child, UrlNode):
-            branch.add(f"🔗 {escape(child.name)}: {escape(child.url)}")
+            branch.add(f"🔗 {escape(child.name)} → {escape(child.url)}")
 
 
 def _contents_tree(result: CourseContentsResult) -> Tree:
@@ -298,9 +322,26 @@ def _contents_tree(result: CourseContentsResult) -> Tree:
             f"[bold]{section_name}[/bold]{_marks(section.visible, section.uservisible)}"
         )
         for module in section.modules:
+            if module.modname == "url":
+                branch.add(_url_label(module))
+                continue
             module_branch = branch.add(_module_label(module))
             _render_children(module_branch, module.children)
     return root
+
+
+def _print_tree(tree: Tree) -> None:
+    """Baum ohne Breitenbegrenzung drucken, damit lange URLs nicht abgeschnitten werden."""
+    scratch = Console(width=1_000_000, height=25, highlight=False, soft_wrap=True)
+    width = max(out_console.width, scratch.measure(tree).maximum + 1)
+    tree_console = Console(
+        file=sys.stdout,
+        width=width,
+        height=out_console.height or 25,
+        highlight=False,
+        soft_wrap=True,
+    )
+    tree_console.print(tree)
 
 
 @app.command()
@@ -324,7 +365,7 @@ def ls(
     if json_output:
         _dump(result.to_json_dict())
         return
-    out_console.print(_contents_tree(result))
+    _print_tree(_contents_tree(result))
     out_console.print(f"[dim]{result.timestamp}[/dim]")
 
 

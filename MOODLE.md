@@ -87,8 +87,8 @@ Pro Kurs: `id`, `fullname`, `shortname`, `category` (int oder null), `semester`,
 `url` = `{base}/course/view.php?id=<id>`.
 
 `semester` wird aus `startdate` in Europe/Berlin abgeleitet (reine Funktion
-`timeutil.semester_from_timestamp`): Apr–Sep → `SoSe YYYY`, Okt–Dez → `WiSe YYYY/YY+1`,
-Jan–Mär → `WiSe YYYY-1/YY`; `0`/fehlend → `null`. Die Menschen-Tabelle (ID, Kurzname,
+`timeutil.semester_from_timestamp`): Mrz–Aug → `SoSe YYYY`, Sep–Dez → `WiSe YYYY/YY+1`,
+Jan–Feb → `WiSe YYYY-1/YY`; `0`/fehlend → `null`. Die Menschen-Tabelle (ID, Kurzname,
 Name, Semester) sortiert nach Semester (neuestes zuerst, `null` zuletzt), dann Name.
 
 ### `ilias ls <kurs> [--depth N]`
@@ -125,18 +125,31 @@ Programmieren 1 (WS 2026/27) (PR1-WS26)
 │   │   ├── 📁 Blatt 2
 │   │   │   └── 📄 blatt02.pdf (200.0 KB)
 │   │   └── 📄 blatt01.pdf (179.2 KB)
-│   ├── 🔗 Link: Moodle-Doku
+│   ├── 🔗 Openbook Rheinwerk: C von A bis Z & Dienste → https://openbook.rheinwerk-verlag.de/…(vollständige URL)
 │   └── 🏷️ Beschriftung: Willkommen im Kurs Bitte alles lesen
 ├── Übung 1
 │   ├── 📄 Datei: Skript Kapitel 1
 │   ├── 📝 Aufgabe: Aufgabe 1
-│   └── 💬 Forum: Fragenforum
-└── Altklausuren
+│   ├── 💬 Forum: Fragenforum
+│   ├── 📅 Terminplaner: Sprechstunde
+│   └── 📋 Feedback: Rückmeldung
+└── Altklausuren --> Archiv & Mehr
     ├── 📁 Ordner: [Klausur] Altklausuren
     ├── ❓ Test: Probeklausur [verborgen]
     ├── 🗳️ Abstimmung: Evaluation [gesperrt] (Nicht verfügbar, es sei denn: Einschreibung)
-    └── 📃 Seite: Lernziele
+    ├── 📃 Seite: Lernziele
+    └── 📁 Ordner: Natursortierung
+        ├── 📄 Blatt1.pdf (1.0 KB)
+        ├── 📄 blatt2.pdf (1.0 KB)
+        ├── 📄 blatt10.pdf (1.0 KB)
+        └── 📄 Blatt&1info.pdf (1.0 KB)
 ```
+
+Hinweise: `url`-Module erscheinen als genau eine Zeile `🔗 <Modulname> → <URL>` (der
+Modulname trägt die Satzzeichen, der Dateiname aus `contents` ist von Moodle beschnitten);
+URLs werden nie abgeschnitten. HTML-Entities (`&gt;`, `&amp;`) werden in der Kernschicht
+dekodiert, Dateien in Ordnern natürlich und case-insensitive sortiert (`blatt2` vor
+`blatt10`).
 
 ### JSON-Formen
 
