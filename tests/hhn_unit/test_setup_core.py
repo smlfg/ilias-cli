@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from ilias_core import setup as setup_core
 from ilias_cli import prompts
+from ilias_core import setup as setup_core
 
 
 @pytest.mark.parametrize(

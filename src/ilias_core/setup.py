@@ -48,7 +48,7 @@ class InstanceInfo:
         }
 
 
-def _info(key: str, profile) -> InstanceInfo:  # noqa: ANN001 - InstanceProfile
+def _info(key: str, profile) -> InstanceInfo:
     return InstanceInfo(
         key=key,
         name=profile.display_name or profile.name,

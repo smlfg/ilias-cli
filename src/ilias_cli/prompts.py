@@ -5,6 +5,8 @@ Prompts gehen auf stderr, damit ``--json`` auf stdout sauber bleibt.
 
 from __future__ import annotations
 
+import sys
+
 import typer
 
 from ilias_core.errors import ConfigError
@@ -15,11 +17,31 @@ def ask_username(label: str = "Benutzername", default: str | None = None) -> str
 
 
 def ask_password() -> str:
-    return typer.prompt("Passwort", hide_input=True, confirmation_prompt=False, err=True)
+    return _ask_secret("Passwort")
 
 
 def ask_totp() -> str:
-    return typer.prompt("TOTP-Code", hide_input=True, confirmation_prompt=False, err=True)
+    return _ask_secret("TOTP-Code")
+
+
+def _ask_secret(label: str) -> str:
+    """Verdeckte Eingabe; ohne Terminal eine Zeile von stdin (Spec §3.3).
+
+    Mit Terminal: verdeckter Prompt (kein Echo). Ohne Terminal (Pipe, CI) wird
+    **nicht** ``getpass`` benutzt (das warnt "Password input may be echoed" und
+    versucht ``/dev/tty``), sondern genau eine Zeile von stdin gelesen. Die Eingabe
+    wird nie ausgegeben oder gespeichert. EOF -> Abbruch (``typer.Abort``).
+    """
+
+    if sys.stdin is not None and sys.stdin.isatty():
+        return typer.prompt(label, hide_input=True, confirmation_prompt=False, err=True)
+    stream = sys.stdin
+    typer.echo(f"{label} (stdin, kein Terminal): ", err=True, nl=False)
+    line = stream.readline() if stream is not None else ""
+    if not line:
+        raise typer.Abort()
+    typer.echo("", err=True)  # Zeilenende nach dem Prompt; die Eingabe selbst nie ausgeben
+    return line.rstrip("\r\n")
 
 
 def choose_instance(infos: list) -> str:
@@ -27,33 +49,43 @@ def choose_instance(infos: list) -> str:
 
     Tippen filtert die Liste (case-insensitiver Teilstring wie
     :func:`ilias_core.setup.filter_instances`), eine Nummer übernimmt den
-    markierten Treffer, Enter den einzigen verbleibenden. Prompts auf stderr.
+    angezeigten Treffer. Bleibt genau ein Treffer übrig, wird er übernommen.
+    Enter bei mehreren Treffern wählt **nicht** still den ersten, sondern fragt
+    erneut nach einer eindeutigen Auswahl. Prompts auf stderr.
     """
 
+    from ilias_core.setup import filter_instances
+
     if not infos:
-        raise ConfigError("Keine passende Instanz gefunden.")
+        raise ConfigError(
+            "Keine passende Instanz gefunden.",
+            hint="`ilias setup --list` zeigt alle Instanzen; dann `ilias setup --instance <key>`.",
+        )
 
     current = list(infos)
     while True:
+        _print_choices(current)
         if len(current) == 1:
-            _print_choices(current)
             return current[0].key
 
-        _print_choices(current)
-        answer = typer.prompt("Auswahl (Nummer oder Filter)", err=True).strip()
+        answer = typer.prompt("Auswahl (Nummer oder Filter)", default="", show_default=False, err=True)
+        answer = answer.strip()
         if not answer:
-            if len(current) >= 1:
-                return current[0].key
+            typer.echo(
+                f"Mehrere Treffer ({len(current)}): bitte eine Nummer wählen oder weiter filtern.",
+                err=True,
+            )
+            continue
         if answer.isdigit():
             index = int(answer) - 1
             if 0 <= index < len(current):
                 return current[index].key
-        from ilias_core.setup import filter_instances
-
+            typer.echo(f"Ungültige Nummer {answer}: bitte 1 bis {len(current)} wählen.", err=True)
+            continue
         filtered = filter_instances(answer)
         if filtered:
             current = filtered
-        elif answer:
+        else:
             typer.echo(f"Keine Instanz passt auf {answer!r}.", err=True)
 
 

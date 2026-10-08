@@ -14,7 +14,8 @@ from typing import Any
 
 import typer
 
-from ilias_core import debuglog, setup as setup_core
+from ilias_core import debuglog
+from ilias_core import setup as setup_core
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
 from ilias_core.errors import AbortedError, ConfigError, IliasError
 from ilias_core.models import (
@@ -75,7 +76,9 @@ _HINT_TEMPLATES = {
     ),
     "auth_failed": "Benutzername, Passwort und ggf. TOTP-Code prüfen (`ilias login --instance {key}`).",
     "not_supported": "Für diese Funktion eine unterstützte Instanz wählen (`--instance <key>`).",
-    "network_error": "Erreichbarkeit von {key} prüfen (ggf. VPN).",
+    "network_error": (
+        "Erreichbarkeit von {url} prüfen (ggf. VPN), dann erneut mit `--instance {key}` versuchen."
+    ),
     "parse_error": "Erwartete Struktur fehlt; `ilias --help` bzw. `--debug` zeigt die Details.",
 }
 
@@ -84,7 +87,7 @@ def _default_hint(code: str, service: Service | None) -> str | None:
     template = _HINT_TEMPLATES.get(code)
     if template is None or service is None:
         return None
-    return template.format(key=service.instance.key)
+    return template.format(key=service.instance.key, url=service.instance.normalized_base_url)
 
 
 def _fail(command: str, exc: IliasError, json_output: bool, service: Service | None) -> typer.Exit:
@@ -225,7 +228,12 @@ def setup(
         False, "--list", help="Verfügbare Instanzen anzeigen (kein Login)."
     ),
     filter_text: str | None = typer.Option(
-        None, "--filter", help="Instanz-Liste filtern (case-insensitiver Teilstring)."
+        None,
+        "--filter",
+        help=(
+            "Instanz-Liste filtern (case-insensitiver Teilstring); gilt für `--list` "
+            "und für die interaktive Auswahl."
+        ),
     ),
     instance: str | None = INSTANCE_OPTION,
     username: str | None = typer.Option(
@@ -245,7 +253,7 @@ def setup(
         return
 
     try:
-        result = _setup_run(instance, username, json_output, debug)
+        result = _setup_run(instance, username, json_output, debug, filter_text)
     except typer.Exit:
         raise
     except IliasError as exc:
@@ -271,7 +279,11 @@ _NO_TTY_HINT = (
 
 
 def _setup_run(
-    instance: str | None, username: str | None, json_output: bool, debug: bool
+    instance: str | None,
+    username: str | None,
+    json_output: bool,
+    debug: bool,
+    filter_text: str | None = None,
 ) -> SetupResult:
     """Geführte Erst-Einrichtung (Spec §3): Instanz, Benutzername, Passwort, Login, Config-Merge."""
 
@@ -285,7 +297,8 @@ def _setup_run(
                 "Ohne Terminal muss die Instanz mit --instance angegeben werden.",
                 hint=_NO_TTY_HINT,
             )
-        instance = prompts.choose_instance(setup_core.list_instances(None))
+        # `--filter` gilt auch für die interaktive Auswahl (nicht nur für `--list`).
+        instance = prompts.choose_instance(setup_core.list_instances(filter_text))
 
     service = open_service(instance)
     debuglog.debug(
