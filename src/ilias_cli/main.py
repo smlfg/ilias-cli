@@ -29,6 +29,7 @@ from ilias_core.models import (
 )
 from ilias_core.secrets import Secret
 from ilias_core.service import Service, open_service
+from ilias_core.setup import filter_instances
 
 from . import output, prompts
 
@@ -126,6 +127,41 @@ def _is_moodle(service: Service) -> bool:
 
 
 # ---------------------------------------------------------------- Befehle
+@app.command()
+def setup(
+    json_output: bool = JSON_OPTION,
+    instance: str | None = INSTANCE_OPTION,
+    username: str | None = typer.Option(
+        None, "--username", help="Benutzername (sonst Eingabe/Prompt)."
+    ),
+    debug: bool = DEBUG_OPTION,
+    list_flag: bool = typer.Option(False, "--list", help="Alle eingebauten Instanzen auflisten."),
+    filter_text: str | None = typer.Option(
+        None, "--filter", help="Instanzen nach Text filtern (Liste/Auswahl)."
+    ),
+) -> None:
+    """Geführte Erst-Einrichtung (Instanz, Benutzername, Passwort, ggf. TOTP)."""
+
+    if debug:
+        debuglog.enable()
+    if list_flag:
+        infos = filter_instances(filter_text or "")
+        if json_output:
+            output.print_json({"instances": [info.to_dict() for info in infos]})
+        else:
+            for info in infos:
+                totp = "2FA" if info.requires_totp else "kein TOTP"
+                console_line = f"{info.key:<14} {info.name} ({info.city}) – {info.lms}, {info.auth}, {totp}, {info.base_url}"
+                typer.echo(console_line)
+        return
+    def op(service: Service) -> Any:
+        from ilias_core.errors import NotSupportedError
+
+        raise NotSupportedError("`ilias setup` wird in den nächsten Schritten ergänzt (S2–S4).")
+
+    _run("setup", json_output, instance, debug, op)
+
+
 @app.command()
 def login(
     json_output: bool = JSON_OPTION,
