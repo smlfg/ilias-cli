@@ -51,6 +51,7 @@ class Service:
     # -- F2/F3 ----------------------------------------------------------
     def courses(self) -> CoursesResult:
         """Kurse des angemeldeten Nutzers, sortiert (F2)."""
+        self.backend.preflight()
         return CoursesResult(
             instance=self.instance.key,
             lms=self.instance.lms,
@@ -59,10 +60,11 @@ class Service:
 
     def ls(self, query: str, depth: int | None = None) -> CourseContentsResult:
         """Einen Kurs auflösen und seinen Inhalt als Baum liefern (F3)."""
+        self.backend.preflight()
         if not self.backend.supports_courses:
             # sofort die passende "nicht unterstützt"-Meldung für ls (nicht die von courses)
             self.backend.course_contents(0)
-        course = resolve_course(self.backend.courses(), query)
+        course = resolve_course(self.backend.courses(), query, instance_key=self.instance.key)
         sections = trim_sections(self.backend.course_contents(course.id), depth)
         return CourseContentsResult(
             instance=self.instance.key,
@@ -73,17 +75,22 @@ class Service:
         )
 
 
-def resolve_course(courses: list[Course], query: str) -> Course:
+def resolve_course(courses: list[Course], query: str, instance_key: str | None = None) -> Course:
     """Kurs per ID oder (case-insensitivem) Teilstring von fullname/shortname finden.
 
     Ein exakter Kurzname/Name schlägt einen bloßen Teilstring. Kein Treffer ->
     `CourseNotFoundError`, mehrere -> `CourseAmbiguousError` (Exit 1).
     """
+    courses_hint = (
+        f"`ilias courses --instance {instance_key}` zeigt die verfügbaren Kurse (id, Kurzname, Name)."
+        if instance_key
+        else "Die Kursliste zeigt die verfügbaren Kurse (id, Kurzname, Name)."
+    )
     text = (query or "").strip()
     if not text:
         raise CourseNotFoundError(
             "Kein Kurs angegeben.",
-            hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
+            hint=courses_hint,
         )
     if text.isdigit():
         target = int(text)
@@ -99,7 +106,7 @@ def resolve_course(courses: list[Course], query: str) -> Course:
     if not matches:
         raise CourseNotFoundError(
             f"Kein Kurs passt auf {text!r}.",
-            hint="`ilias courses` zeigt die verfügbaren Kurse (id, Kurzname, Name).",
+            hint=courses_hint,
         )
     exact = [
         course

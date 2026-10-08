@@ -54,3 +54,12 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def course_contents(self, course_id: int) -> list[Section]:
         """Inhalt eines Kurses als Abschnitts-/Modul-Baum (F3)."""
+
+    def preflight(self) -> None:
+        """Optionaler Session-/Erreichbarkeits-Check vor courses/ls.
+
+        Standard: keine Aktion. Ein Backend, das eine gespeicherte Session
+        braucht, prüft hier ihre Gültigkeit (Exit 2/3/4), bevor es
+        ``courses()``/``course_contents()`` aufruft.
+        """
+        return None

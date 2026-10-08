@@ -70,11 +70,13 @@ class IliasClient:
         state = self._dashboard_state(cookies)
         if state is DashboardState.UNKNOWN:
             raise ParserError(
-                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Nichts gespeichert."
+                "Dashboard ohne Login-Merkmal (unerwartetes HTML).",
+                hint="Der Server antwortet unerwartet; ggf. Wartungsseite oder ILIAS-Update.",
             )
         if state is not DashboardState.OK:
             raise AuthenticationError(
-                "Die Browser-Session wird von ILIAS nicht akzeptiert. Nichts gespeichert."
+                "Die Browser-Session wird von ILIAS nicht akzeptiert. Nichts gespeichert.",
+                hint=f"Erneut mit `ilias login --instance {self.config.instance}` anmelden.",
             )
         self.store.save(cookies)
         return self._login_result(
@@ -96,17 +98,27 @@ class IliasClient:
         cookies = self.store.load()
         if not cookies:
             raise NotLoggedInError(
-                "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen."
+                "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen.",
+                hint=(
+                    f"Mit `ilias login --instance {self.config.instance}` oder "
+                    f"`ilias setup --instance {self.config.instance}` anmelden."
+                ),
             )
 
         state = self._dashboard_state(cookies)
         if state is DashboardState.UNKNOWN:
             raise ParserError(
-                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Session-Status unklar."
+                "Dashboard ohne Login-Merkmal (unerwartetes HTML). Session-Status unklar.",
+                hint="Der Server antwortet unerwartet; ggf. Wartungsseite oder ILIAS-Update.",
             )
         if state is not DashboardState.OK:
             raise SessionExpiredError(
-                "Session abgelaufen. Bitte erneut `ilias login` ausführen."
+                "Session abgelaufen. Bitte erneut `ilias login` ausführen.",
+                hint=(
+                    f"Erneut mit `ilias login --instance {self.config.instance}` oder "
+                    f"`ilias setup --instance {self.config.instance}` anmelden "
+                    "(kein automatischer Re-Login)."
+                ),
             )
 
         return SessionStatus(
