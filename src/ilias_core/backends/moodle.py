@@ -26,7 +26,17 @@ from ..errors import (
     SessionExpiredError,
 )
 from ..http import HttpClient, json_body
-from ..models import Credentials, LoginResult, LogoutResult, SiteInfo, StatusResult
+from ..models import (
+    Course,
+    CourseContentsResult,
+    CourseSection,
+    CoursesResult,
+    Credentials,
+    LoginResult,
+    LogoutResult,
+    SiteInfo,
+    StatusResult,
+)
 from ..secrets import REDACTED
 from ..session import SessionStore
 from .base import Backend
@@ -107,6 +117,106 @@ class MoodleBackend(Backend):
     def logout(self) -> LogoutResult:
         removed = self.store.delete()
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
+
+    # -- F2: Kurse auflisten ---------------------------------------------
+    def courses(self) -> CoursesResult:
+        session = self.store.load()
+        if session is None:
+            raise NotLoggedInError(
+                f"Keine gespeicherte Session für {self.instance.key}.",
+                hint=f"Erst `ilias login --instance {self.instance.key}` aufrufen.",
+            )
+        with HttpClient(self.base_url) as client:
+            # Erst userid über site_info ermitteln
+            info = self._site_info(client, session.token, label="Site-Info für User-ID")
+            if info.userid is None:
+                raise ParseError("Site-Info liefert keine User-ID.")
+            # Dann Kurse abrufen
+            courses = self._get_users_courses(client, session.token, info.userid)
+        return CoursesResult(
+            instance=self.instance.key,
+            lms=self.instance.lms,
+            count=len(courses),
+            courses=tuple(courses),
+        )
+
+    def _get_users_courses(self, client: HttpClient, token: str, userid: int) -> list[Course]:
+        """core_enrol_get_users_courses: liefert die Kurse eines Nutzers."""
+        payload = {
+            "wstoken": token,
+            "wsfunction": "core_enrol_get_users_courses",
+            "moodlewsrestformat": REST_FORMAT,
+            "userid": str(userid),
+        }
+        label = "Kursliste abrufen"
+        response = client.post_form(REST_PATH, payload, label=label)
+        data = json_body(response, label=label)
+        self._raise_for_error(data, label=label, secrets=(token,))
+        if not isinstance(data, list):
+            raise ParseError(f"{label}: Antwort ist keine Liste.")
+        courses = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            try:
+                courses.append(Course.from_moodle_json(item, self.base_url))
+            except Exception:
+                # Kaputte Kurs-Einträge überspringen
+                pass
+        # Sortieren: nach Semester (neueste zuerst, None am Ende), dann fullname
+        def sort_key(c: Course):
+            sem = c.semester or ""
+            # Semester-String für Sortierung: "WiSe 2026/27" > "SoSe 2026" > ""
+            # Wir parsen das Semester grob für Sortierung
+            return (sem == "", sem, c.fullname.lower())
+        courses.sort(key=sort_key, reverse=True)
+        return courses
+
+    # -- F3: Kursinhalt als Baum -----------------------------------------
+    def course_contents(self, course_id: int) -> CourseContentsResult:
+        session = self.store.load()
+        if session is None:
+            raise NotLoggedInError(
+                f"Keine gespeicherte Session für {self.instance.key}.",
+                hint=f"Erst `ilias login --instance {self.instance.key}` aufrufen.",
+            )
+        with HttpClient(self.base_url) as client:
+            sections = self._get_course_contents(client, session.token, course_id)
+        # Kurs-Info für das Ergebnis (wir haben sie aus der Kursliste oder holen sie separat)
+        # Für simplicity: wir nutzen eine minimale Info, da der Kurs schon aufgelöst wurde
+        course_info = {"id": course_id, "fullname": "", "shortname": ""}
+        return CourseContentsResult(
+            instance=self.instance.key,
+            lms=self.instance.lms,
+            course=course_info,
+            depth=None,  # wird im Service gesetzt
+            sections=tuple(sections),
+        )
+
+    def _get_course_contents(self, client: HttpClient, token: str, course_id: int) -> list:
+        """core_course_get_contents: liefert Abschnitte mit Modulen und Dateien."""
+        payload = {
+            "wstoken": token,
+            "wsfunction": "core_course_get_contents",
+            "moodlewsrestformat": REST_FORMAT,
+            "courseid": str(course_id),
+        }
+        label = "Kursinhalt abrufen"
+        response = client.post_form(REST_PATH, payload, label=label)
+        data = json_body(response, label=label)
+        self._raise_for_error(data, label=label, secrets=(token,))
+        if not isinstance(data, list):
+            raise ParseError(f"{label}: Antwort ist keine Liste.")
+        sections = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            try:
+                sections.append(CourseSection.from_moodle_json(item))
+            except Exception:
+                # Kaputte Abschnitt-Einträge überspringen
+                pass
+        return sections
 
     # -- Moodle-spezifisch ----------------------------------------------
     def _request_token(self, client: HttpClient, credentials: Credentials) -> str:

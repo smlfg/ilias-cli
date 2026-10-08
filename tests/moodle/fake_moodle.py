@@ -11,6 +11,10 @@ Bildet genau die zwei Endpunkte nach, die der Login-Teil benutzt
         -> {"exception": "moodle_exception", "errorcode": "invalidtoken", ...}
 
 Schalter für Fehlerszenarien: token_mode, rest_mode (siehe FakeMoodle).
+
+Erweitert für F2/F3:
+  wsfunction=core_enrol_get_users_courses  -> Liste von Kursen
+  wsfunction=core_course_get_contents      -> Kursinhalt (Abschnitte, Module, Dateien)
 """
 
 from __future__ import annotations
@@ -63,6 +67,10 @@ class FakeMoodle:
     tokens: dict[str, str] = field(default_factory=dict)  # token -> username
     requests: list[RecordedRequest] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock)
+
+    # Fixtures für F2/F3
+    courses_fixture: list[dict] | None = None
+    course_contents_fixture: dict[int, list] | None = None
 
     port: int = 0
     _server: ThreadingHTTPServer | None = None
@@ -207,15 +215,8 @@ def _make_handler(world: FakeMoodle):
             token = rec.form_value("wstoken") or ""
             function = rec.form_value("wsfunction") or ""
             fmt = rec.form_value("moodlewsrestformat") or ""
-            if function != "core_webservice_get_site_info" or fmt != "json":
-                return self._send_json(
-                    200,
-                    {
-                        "exception": "webservice_access_exception",
-                        "errorcode": "accessexception",
-                        "message": "Access to the specified function is not allowed",
-                    },
-                )
+            
+            # Token prüfen (außer bei echo_token Mode)
             if world.rest_mode == "echo_token":
                 return self._send_json(
                     401,
@@ -225,6 +226,7 @@ def _make_handler(world: FakeMoodle):
                         "message": f"Invalid token: {token}",
                     },
                 )
+            
             with world.lock:
                 username = world.tokens.get(token)
             if world.rest_mode == "invalid_token" or username is None:
@@ -237,7 +239,26 @@ def _make_handler(world: FakeMoodle):
                         "debuginfo": "Token was not found in the database",
                     },
                 )
-            return self._send_json(
+            
+            # Funktionen verteilen
+            if function == "core_webservice_get_site_info":
+                return self._handle_site_info(username)
+            elif function == "core_enrol_get_users_courses":
+                return self._handle_users_courses(username)
+            elif function == "core_course_get_contents":
+                return self._handle_course_contents(rec)
+            else:
+                return self._send_json(
+                    200,
+                    {
+                        "exception": "webservice_access_exception",
+                        "errorcode": "accessexception",
+                        "message": "Access to the specified function is not allowed",
+                    },
+                )
+        
+        def _handle_site_info(self, username: str) -> None:
+            self._send_json(
                 200,
                 {
                     "sitename": world.sitename,
@@ -251,5 +272,26 @@ def _make_handler(world: FakeMoodle):
                     "siteid": 1,
                 },
             )
+        
+        def _handle_users_courses(self, username: str) -> None:
+            courses = world.courses_fixture
+            if courses is None:
+                courses = _default_courses_fixture(username, world.userid)
+            self._send_json(200, courses)
+        
+        def _handle_course_contents(self, rec: RecordedRequest) -> None:
+            courseid_str = rec.form_value("courseid") or ""
+            try:
+                courseid = int(courseid_str)
+            except ValueError:
+                self._send_json(200, {"exception": "invalid_parameter_exception", "errorcode": "invalidparameter", "message": "Invalid courseid"})
+                return
+            
+            contents = None
+            if world.course_contents_fixture is not None:
+                contents = world.course_contents_fixture.get(courseid)
+            if contents is None:
+                contents = _default_course_contents_fixture(courseid)
+            self._send_json(200, contents)
 
     return Handler

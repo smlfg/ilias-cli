@@ -8,7 +8,7 @@ funktionieren trotzdem, weil der Session-Speicher backend-unabhängig ist.
 from __future__ import annotations
 
 from ..errors import NotLoggedInError, NotSupportedError
-from ..models import Credentials, LoginResult, LogoutResult, StatusResult
+from ..models import CourseContentsResult, CoursesResult, Credentials, LoginResult, LogoutResult, StatusResult
 from ..session import SessionStore
 from .base import Backend
 
@@ -41,3 +41,9 @@ class IliasBackend(Backend):
     def logout(self) -> LogoutResult:
         removed = self.store.delete()
         return LogoutResult(instance=self.instance.key, lms=self.instance.lms, token_removed=removed)
+
+    def courses(self) -> CoursesResult:
+        raise NotSupportedError(f"ILIAS-Kursliste ist nicht implementiert. {_HINT}")
+
+    def course_contents(self, course_id: int) -> CourseContentsResult:
+        raise NotSupportedError(f"ILIAS-Kursinhalt ist nicht implementiert. {_HINT}")

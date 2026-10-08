@@ -5,11 +5,19 @@ from __future__ import annotations
 import abc
 
 from ..config import Instance
-from ..models import Credentials, LoginResult, LogoutResult, StatusResult
+from ..models import (
+    Course,
+    CourseContentsResult,
+    CoursesResult,
+    Credentials,
+    LoginResult,
+    LogoutResult,
+    StatusResult,
+)
 
 
 class Backend(abc.ABC):
-    """Ein Backend kapselt Login, Status und Logout einer Instanz."""
+    """Ein Backend kapselt Login, Status, Logout und Kurs-Operationen einer Instanz."""
 
     name: str = "abstract"
     supports_login: bool = False
@@ -36,3 +44,11 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def logout(self) -> LogoutResult:
         """Lokale Session löschen."""
+
+    @abc.abstractmethod
+    def courses(self) -> CoursesResult:
+        """Eigene Kurse auflisten (F2)."""
+
+    @abc.abstractmethod
+    def course_contents(self, course_id: int) -> CourseContentsResult:
+        """Inhalt eines Kurses als Baum (F3)."""

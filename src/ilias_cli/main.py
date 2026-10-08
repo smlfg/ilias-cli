@@ -15,6 +15,7 @@ import typer
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
+from rich.tree import Tree
 
 from ilias_core import (
     CoreError,
@@ -23,7 +24,7 @@ from ilias_core import (
     __version__,
     open_service,
 )
-from ilias_core.models import LoginResult, LogoutResult, StatusResult
+from ilias_core.models import CourseContentsResult, CoursesResult, LoginResult, LogoutResult, StatusResult
 
 app = typer.Typer(
     help="ilias-cli – Login/Status/Logout für ILIAS- und Moodle-Instanzen (Hochschulen).",
@@ -61,6 +62,7 @@ def _fail(
     service: Service | None = None,
 ) -> typer.Exit:
     """Fehler melden: JSON auf stdout (maschinenlesbar), Text auf stderr."""
+    candidates = getattr(exc, "candidates", None)
     result = ErrorResult(
         command=command,
         error_code=exc.code,
@@ -69,6 +71,7 @@ def _fail(
         hint=exc.hint,
         instance=service.instance.key if service else None,
         lms=service.instance.lms if service else None,
+        candidates=candidates,
     )
     if json_output:
         _dump(result.to_json_dict())
@@ -177,6 +180,168 @@ def logout(
     else:
         out_console.print(f"Keine gespeicherte Session für {result.instance} ({result.lms}) - nichts zu tun.")
     out_console.print(f"[dim]{result.timestamp}[/dim]")
+
+
+# ---------------------------------------------------------------- F2: courses
+def _format_size(size: int) -> str:
+    """Formatiert Bytes in KB/MB."""
+    if size < 1024:
+        return f"{size} B"
+    if size < 1024 * 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size / (1024 * 1024):.1f} MB"
+
+
+def _courses_table(result: CoursesResult) -> Table:
+    table = Table(title=f"Kurse ({result.instance}, {result.lms})", show_header=True, header_style="bold")
+    table.add_column("ID", style="cyan", justify="right")
+    table.add_column("Kurzname", style="green")
+    table.add_column("Name", style="white")
+    table.add_column("Semester", style="yellow")
+    for course in result.courses:
+        table.add_row(
+            str(course.id),
+            escape(course.shortname),
+            escape(course.fullname),
+            escape(course.semester or ""),
+        )
+    return table
+
+
+@app.command()
+def courses(
+    instance: str | None = _instance_option(),
+    json_output: bool = _json_option(),
+) -> None:
+    """Eigene Kurse auflisten (ID, Kurzname, Name, Semester)."""
+    result: CoursesResult = _run("courses", json_output, instance, lambda service: service.courses())
+    if json_output:
+        _dump(result.to_json_dict())
+        return
+    out_console.print(_courses_table(result))
+
+
+# ---------------------------------------------------------------- F3: ls
+def _modname_icon(modname: str) -> str:
+    """Gibt ein Icon für den Modul-Typ zurück."""
+    icons = {
+        "folder": "📁",
+        "resource": "📄",
+        "url": "🔗",
+        "assign": "📝",
+        "forum": "💬",
+        "quiz": "❓",
+        "page": "📃",
+        "label": "🏷️",
+        "choice": "☑️",
+        "lti": "🔧",
+    }
+    return icons.get(modname, "📦")
+
+
+def _modname_label(modname: str) -> str:
+    """Gibt ein deutsches Label für den Modul-Typ zurück."""
+    labels = {
+        "folder": "Ordner",
+        "resource": "Datei",
+        "url": "Link",
+        "assign": "Aufgabe",
+        "forum": "Forum",
+        "quiz": "Test",
+        "page": "Seite",
+        "label": "Text",
+        "choice": "Abstimmung",
+        "lti": "LTI-Tool",
+    }
+    return labels.get(modname, modname)
+
+
+def _build_tree(result: CourseContentsResult) -> Tree:
+    """Baut einen rich Tree aus dem Kursinhalt."""
+    course_name = f"{result.course['shortname']} – {result.course['fullname']}"
+    root = Tree(f"📚 [bold]{escape(course_name)}[/bold] (ID: {result.course['id']})")
+    
+    for section in result.sections:
+        # Section-Name: falls leer oder "Abschnitt X", Nummer verwenden
+        sec_name = section.name.strip()
+        if not sec_name or sec_name.lower().startswith("abschnitt "):
+            sec_name = f"Abschnitt {section.number}" if section.number > 0 else "Allgemeines"
+        
+        # Sichtbarkeits-Marker
+        markers = []
+        if not section.visible:
+            markers.append("[verborgen]")
+        if not section.uservisible:
+            markers.append("[gesperrt]")
+        marker_str = " ".join(markers)
+        if marker_str:
+            marker_str = f" [dim]{marker_str}[/dim]"
+        
+        section_node = root.add(f"📂 [bold]{escape(sec_name)}[/bold]{marker_str} (ID: {section.id})")
+        
+        for module in section.modules:
+            icon = _modname_icon(module.modname)
+            label = _modname_label(module.modname)
+            
+            markers = []
+            if not module.visible:
+                markers.append("[verborgen]")
+            if not module.uservisible:
+                markers.append("[gesperrt]")
+            if module.availability:
+                markers.append(f"[{escape(module.availability)}]")
+            marker_str = " ".join(markers)
+            if marker_str:
+                marker_str = f" [dim]{marker_str}[/dim]"
+            
+            module_node = section_node.add(
+                f"{icon} [bold]{escape(module.name)}[/bold] ({label}){marker_str}"
+            )
+            
+            # Kinder (Dateien, Ordner, URLs)
+            for child in module.children:
+                if hasattr(child, 'children'):  # CourseFolder
+                    _add_folder_to_tree(module_node, child)
+                elif hasattr(child, 'size'):  # CourseFile
+                    size_str = _format_size(child.size)
+                    mime = f" ({child.mimetype})" if child.mimetype else ""
+                    module_node.add(f"📄 {escape(child.name)} [dim]{size_str}{mime}[/dim]")
+                elif hasattr(child, 'url'):  # CourseURL
+                    module_node.add(f"🔗 {escape(child.name)} [dim]({escape(child.url)})[/dim]")
+    
+    return root
+
+
+def _add_folder_to_tree(parent: Tree, folder, depth: int = 0) -> None:
+    """Fügt einen Ordner rekursiv zum Tree hinzu."""
+    folder_node = parent.add(f"📁 {escape(folder.name)}")
+    for child in folder.children:
+        if hasattr(child, 'children'):  # CourseFolder
+            _add_folder_to_tree(folder_node, child, depth + 1)
+        elif hasattr(child, 'size'):  # CourseFile
+            size_str = _format_size(child.size)
+            mime = f" ({child.mimetype})" if child.mimetype else ""
+            folder_node.add(f"📄 {escape(child.name)} [dim]{size_str}{mime}[/dim]")
+        elif hasattr(child, 'url'):  # CourseURL
+            folder_node.add(f"🔗 {escape(child.name)} [dim]({escape(child.url)})[/dim]")
+
+
+@app.command()
+def ls(
+    kurs: str = typer.Argument(..., help="Kurs-ID oder Teil des Kursnamens/Kurznamens."),
+    instance: str | None = _instance_option(),
+    depth: int | None = typer.Option(None, "--depth", "-d", help="Tiefe: 1=Abschnitte, 2=+Module, 3=+Dateien, ..."),
+    json_output: bool = _json_option(),
+) -> None:
+    """Inhalt eines Kurses als Baum anzeigen (Abschnitte, Module, Dateien)."""
+    result: CourseContentsResult = _run(
+        "ls", json_output, instance, lambda service: service.ls(kurs, depth)
+    )
+    if json_output:
+        _dump(result.to_json_dict())
+        return
+    tree = _build_tree(result)
+    out_console.print(tree)
 
 
 def main_entrypoint() -> None:  # pragma: no cover - Einstieg über Konsolen-Skript
