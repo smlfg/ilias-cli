@@ -1,22 +1,42 @@
-"""Kommandozeilen-Einstieg der ILIAS-CLI.
+"""Kommandozeilen-Einstieg der ILIAS-/Moodle-CLI.
 
 Die CLI enthält nur Prompts, Ausgabe und die Abbildung ``IliasError`` ->
-Exit-Code. Sämtliche Logik steckt in :mod:`ilias_core`.
+Exit-Code. Sämtliche Logik steckt in :mod:`ilias_core`: das Instanz-Register
+wählt das Backend (``ilias`` für ``hhn``/``uni-mannheim``, ``moodle`` für
+``hs-mannheim``), der Service liefert strukturierte Ergebnisse.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 import typer
 
 from ilias_core import debuglog
-from ilias_core.client import IliasClient
-from ilias_core.config import BUILTIN_INSTANCES, load_config
+from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
 from ilias_core.errors import IliasError
+from ilias_core.models import (
+    CourseContentsResult,
+    CoursesResult,
+    Credentials,
+    ErrorResult,
+    LoginResult,
+    LogoutResult,
+    MoodleLoginResult,
+    MoodleStatusResult,
+    SessionStatus,
+)
+from ilias_core.secrets import Secret
+from ilias_core.service import Service, open_service
 
 from . import output, prompts
 
 app = typer.Typer(
-    help="ILIAS-CLI (Phase 1): Login, Status und Logout.",
+    help=(
+        "ILIAS-/Moodle-CLI: Login, Status, Logout (ILIAS und Moodle), "
+        "Kurse und Kursinhalt (Moodle)."
+    ),
     no_args_is_help=True,
     add_completion=False,
 )
@@ -37,32 +57,75 @@ DEBUG_OPTION = typer.Option(
     "--debug",
     help=(
         "Sicheres Debug-Log auf stderr: nur URLs (ohne Query-Werte), Statuscodes "
-        "und Formularfeld-Namen. Nie Werte, Passwörter oder Cookies."
+        "und Formularfeld-Namen. Nie Werte, Passwörter, Tokens oder Cookies."
     ),
 )
 
 
-def _fail(exc: IliasError, json_output: bool) -> None:
+# ---------------------------------------------------------------- Hilfen
+def _fail(command: str, exc: IliasError, json_output: bool, service: Service | None) -> typer.Exit:
+    """Fehler melden: JSON auf stdout (maschinenlesbar), Text auf stderr."""
+
+    result = ErrorResult(
+        command=command,
+        error_code=exc.code,
+        error_type=type(exc).__name__,
+        message=exc.message or str(exc),
+        exit_code=exc.exit_code,
+        hint=exc.hint,
+        instance=service.instance.key if service else None,
+        lms=service.instance.lms if service else None,
+        candidates=exc.candidates,
+    )
     if json_output:
-        output.print_json(output.error_payload(exc, exc.exit_code))
-    else:
-        output.print_error(str(exc))
-    raise typer.Exit(code=exc.exit_code)
+        output.print_json(result.to_json_dict())
+    output.print_error(result.message, exc.hint)
+    return typer.Exit(code=exc.exit_code)
 
 
-def _client(instance: str | None, debug: bool) -> IliasClient:
+def _run(
+    command: str,
+    json_output: bool,
+    instance: str | None,
+    debug: bool,
+    op: Callable[[Service], Any],
+) -> tuple[Service, Any]:
+    """Instanz auflösen, Operation ausführen, Fehler -> Exit-Code (INTERFACE.md §3).
+
+    Unerwartete Ausnahmen werden nur mit ihrem Typnamen gemeldet: ein Traceback
+    könnte Werte lokaler Variablen (Passwort, Token) enthalten (A1).
+    """
+
     if debug:
         debuglog.enable()
-    config = load_config(instance=instance)
-    debuglog.debug(
-        "Instanz %s, auth=%s, base_url=%s",
-        config.instance,
-        config.auth,
-        debuglog.redact_url(config.base_url),
-    )
-    return IliasClient(config)
+    service: Service | None = None
+    try:
+        service = open_service(instance)
+        debuglog.debug(
+            "Instanz %s, lms=%s, auth=%s, base_url=%s",
+            service.instance.key,
+            service.instance.lms,
+            service.instance.auth,
+            debuglog.redact_url(service.instance.base_url),
+        )
+        return service, op(service)
+    except typer.Exit:
+        raise
+    except IliasError as exc:
+        raise _fail(command, exc, json_output, service) from None
+    except KeyboardInterrupt:  # pragma: no cover
+        raise typer.Exit(code=130) from None
+    except Exception as exc:  # noqa: BLE001 - bewusst: nie einen Traceback ausgeben
+        raise _fail(
+            command, IliasError(f"Unerwarteter Fehler: {type(exc).__name__}"), json_output, service
+        ) from None
 
 
+def _is_moodle(service: Service) -> bool:
+    return service.instance.lms == BACKEND_MOODLE
+
+
+# ---------------------------------------------------------------- Befehle
 @app.command()
 def login(
     json_output: bool = JSON_OPTION,
@@ -71,7 +134,7 @@ def login(
         False,
         "--browser",
         help=(
-            "Login in einem sichtbaren Browser; nur ILIAS-Cookies werden übernommen. "
+            "Nur ILIAS: Login in einem sichtbaren Browser; nur ILIAS-Cookies werden übernommen. "
             "Vorher: `uv sync --extra browser && uv run playwright install chromium`."
         ),
     ),
@@ -80,21 +143,31 @@ def login(
     ),
     debug: bool = DEBUG_OPTION,
 ) -> None:
-    """Meldet sich an (OIDC/Keycloak oder SAML/Shibboleth) und speichert die Session."""
+    """Meldet sich an (ILIAS: OIDC/Keycloak oder SAML/Shibboleth; Moodle: Webservice-Token)."""
 
-    try:
-        client = _client(instance, debug)
+    def op(service: Service) -> Any:
+        backend = service.backend
         if browser:
-            result = client.login_with_browser()
-        else:
-            user = username or prompts.ask_username(client.config.username_label)
-            password = prompts.ask_password()
-            otp_callback = prompts.ask_totp if client.uses_totp else None
-            result = client.login(user, password, otp_callback)
-    except IliasError as exc:
-        _fail(exc, json_output)
-        return
+            if _is_moodle(service):
+                raise IliasError(
+                    "--browser gibt es nur für ILIAS-Instanzen.",
+                    hint="Für Moodle reicht `ilias login --instance hs-mannheim`.",
+                )
+            return backend.login_with_browser()
+        label = getattr(service.instance, "username_label", "Benutzername")
+        user = username or prompts.ask_username(label)
+        password = prompts.ask_password()
+        otp_callback = prompts.ask_totp if backend.uses_totp else None
+        return service.login(Credentials(username=user, password=Secret(password)), otp_callback)
 
+    _, result = _run("login", json_output, instance, debug, op)
+    if isinstance(result, MoodleLoginResult):
+        if json_output:
+            output.print_json(result.to_json_dict())
+        else:
+            output.print_moodle_login(result)
+        return
+    assert isinstance(result, LoginResult)
     if json_output:
         output.print_json(result.to_dict())
     else:
@@ -107,14 +180,16 @@ def status(
     instance: str | None = INSTANCE_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
-    """Prüft die gespeicherte Session gegen das ILIAS-Dashboard."""
+    """Prüft die gespeicherte Session (Exit 2: keine Session, Exit 3: abgelaufen)."""
 
-    try:
-        result = _client(instance, debug).status()
-    except IliasError as exc:
-        _fail(exc, json_output)
+    _, result = _run("status", json_output, instance, debug, lambda service: service.status())
+    if isinstance(result, MoodleStatusResult):
+        if json_output:
+            output.print_json(result.to_json_dict())
+        else:
+            output.print_moodle_status(result)
         return
-
+    assert isinstance(result, SessionStatus)
     if json_output:
         output.print_json(result.to_dict())
     else:
@@ -127,21 +202,63 @@ def logout(
     instance: str | None = INSTANCE_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
-    """Löscht die gespeicherte Session der Instanz."""
+    """Löscht die gespeicherte Session bzw. den Token der Instanz (lokal)."""
 
-    try:
-        client = _client(instance, debug)
-        removed = client.logout()
-    except IliasError as exc:
-        _fail(exc, json_output)
+    service, result = _run("logout", json_output, instance, debug, lambda s: s.logout())
+    assert isinstance(result, LogoutResult)
+    if _is_moodle(service):
+        if json_output:
+            output.print_json(result.to_json_dict())
+        else:
+            output.print_moodle_logout(result)
         return
-
     if json_output:
         output.print_json(
-            {"ok": True, "session_removed": removed, "instance": client.config.instance}
+            {"ok": True, "session_removed": result.token_removed, "instance": result.instance}
         )
     else:
-        output.print_logout(removed)
+        output.print_logout(result.token_removed)
+
+
+@app.command()
+def courses(
+    json_output: bool = JSON_OPTION,
+    instance: str | None = INSTANCE_OPTION,
+    debug: bool = DEBUG_OPTION,
+) -> None:
+    """Eigene Kurse auflisten (ID, Kurzname, Name, Semester). Derzeit nur Moodle."""
+
+    _, result = _run("courses", json_output, instance, debug, lambda service: service.courses())
+    assert isinstance(result, CoursesResult)
+    if json_output:
+        output.print_json(result.to_json_dict())
+    else:
+        output.print_courses(result)
+
+
+@app.command()
+def ls(
+    kurs: str = typer.Argument(..., help="Kurs-ID oder Teilstring von Kurzname/Name."),
+    instance: str | None = INSTANCE_OPTION,
+    depth: int | None = typer.Option(
+        None,
+        "--depth",
+        "-d",
+        help="Baumtiefe: 1=Abschnitte, 2=+Module, 3=+Dateien/erste Ordnerebene, … (Default: alles).",
+    ),
+    json_output: bool = JSON_OPTION,
+    debug: bool = DEBUG_OPTION,
+) -> None:
+    """Inhalt eines Kurses als Baum (Abschnitte, Module, Dateien). Derzeit nur Moodle."""
+
+    if depth is not None and depth < 1:
+        raise typer.BadParameter("--depth muss mindestens 1 sein.")
+    _, result = _run("ls", json_output, instance, debug, lambda service: service.ls(kurs, depth))
+    assert isinstance(result, CourseContentsResult)
+    if json_output:
+        output.print_json(result.to_json_dict())
+    else:
+        output.print_contents(result)
 
 
 def main() -> None:

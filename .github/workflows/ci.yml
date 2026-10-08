@@ -4,14 +4,21 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+# Alle Testjobs laufen nur gegen localhost-Fake-Server (ILIAS/Keycloak/Shibboleth bzw.
+# Fake-Moodle). Die Netzwerk-Sperre in tests/*/support/sitecustomize.py lässt jeden Test
+# scheitern, der einen echten Server erreichen will. Der PII-/Secret-Check läuft in
+# .github/workflows/pii-guard.yml (PR #19).
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      # Lenient: nur Syntaxfehler und undefinierte Namen brechen den Build.
-      - run: uvx ruff check --select E9,F63,F7,F82 --output-format=github .
+      # Ruff-Standardregeln (Pyflakes + Syntax/Statement-Fehler).
+      - run: uvx ruff check --select E4,E7,E9,F --output-format=github .
 
   acceptance:
     runs-on: ubuntu-latest
@@ -21,14 +28,28 @@ jobs:
         with:
           python-version: "3.11"
       - run: uv sync
-      - name: Akzeptanztests (Login-Teil, F1 + A1–A6)
+      - name: Akzeptanztests ILIAS (Login-Teil, F1 + A1–A6, HHN + Uni Mannheim)
         run: uv run pytest tests/acceptance -q -rA --junitxml=acceptance.xml
-      - name: Eigene Tests der Implementierung (falls vorhanden)
-        if: always() && hashFiles('tests/attempt/**') != ''
-        continue-on-error: true
-        run: uv run pytest tests/attempt -q
+      - name: Unit-/CLI-Tests ILIAS (tests/attempt)
+        run: uv run pytest tests/attempt -q --junitxml=attempt.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: acceptance-results
-          path: acceptance.xml
+          path: "*.xml"
+
+  moodle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: uv sync
+      - name: Moodle-Tests (HS Mannheim, Fake-Moodle, Login + courses + ls)
+        run: uv run pytest tests/moodle -q -rA --junitxml=moodle.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: moodle-results
+          path: moodle.xml
