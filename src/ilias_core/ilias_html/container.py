@@ -139,10 +139,16 @@ def has_container_structure(html: str) -> bool:
 
 
 def is_empty_container(html: str) -> bool:
-    """Leerer Kurs/Ordner mit Leer-Hinweis (``.ilNoItems``/``.alert-info``)."""
+    """Leer-Hinweis (``.ilNoItems``/``.alert-info``) nur im Hauptinhalt.
 
-    soup = BeautifulSoup(html, "html.parser")
-    return any(soup.select_one(selector) is not None for selector in EMPTY_SELECTORS)
+    Wie die Kursliste (``#ilContentContainer``): ein ``.alert-info`` im
+    Seitenrahmen ist ein allgemeiner Hinweis, kein leerer Kurs.
+    """
+
+    content = BeautifulSoup(html, "html.parser").select_one("#ilContentContainer")
+    if content is None:
+        return False
+    return any(content.select_one(selector) is not None for selector in EMPTY_SELECTORS)
 
 
 def parse_container(html: str, base_url: str = "") -> list[ContainerBlock]:

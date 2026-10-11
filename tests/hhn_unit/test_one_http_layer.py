@@ -131,6 +131,33 @@ class _Tty:
         return True
 
 
+def test_setup_tty_prompts_stored_username_as_default(monkeypatch, tmp_path):
+    """§3.3: gespeicherter Benutzername ist der Prompt-Default; nur --username überspringt ihn."""
+    config = tmp_path / "config.toml"
+    config.write_text(setup_core.merge_config_text("", "hhn", "stored-user"), encoding="utf-8")
+    monkeypatch.setenv("ILIAS_CLI_CONFIG_DIR", str(tmp_path))
+    seen: dict[str, str | None] = {}
+
+    def fake_username(label: str, default: str | None = None) -> str:
+        seen["label"] = label
+        seen["default"] = default
+        return "typed-user"
+
+    monkeypatch.setattr(cli_main.sys, "stdin", _Tty())
+    monkeypatch.setattr(cli_main.prompts, "ask_username", fake_username)
+    monkeypatch.setattr(cli_main.prompts, "ask_password", lambda: "pw")
+    monkeypatch.setattr("ilias_core.service.Service.login", lambda *a, **k: None)
+
+    result = cli_main._setup_run("hhn", None, False, False)
+    assert seen["default"] == "stored-user"
+    assert result.username == "typed-user"
+
+    seen.clear()
+    flagged = cli_main._setup_run("hhn", "flag-user", False, False)
+    assert seen == {}
+    assert flagged.username == "flag-user"
+
+
 def test_setup_filter_applies_to_interactive_picker(monkeypatch):
     seen: list[list[str]] = []
 

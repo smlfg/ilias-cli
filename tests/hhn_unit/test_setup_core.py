@@ -90,3 +90,11 @@ def test_choose_instance_retries_on_no_match(monkeypatch):
     answers = iter(["zzz", "1"])
     monkeypatch.setattr(prompts.typer, "prompt", lambda *a, **k: next(answers))
     assert prompts.choose_instance(infos) == "hhn"
+
+
+def test_choose_instance_filter_stays_inside_current_list(monkeypatch):
+    """Tippen filtert die schon gezeigte Liste; `--filter` lässt sich nicht wieder aufweiten."""
+    infos = setup_core.filter_instances("mannheim")
+    answers = iter(["heil", "1"])
+    monkeypatch.setattr(prompts.typer, "prompt", lambda *a, **k: next(answers))
+    assert prompts.choose_instance(infos) == "uni-mannheim"

@@ -79,6 +79,16 @@ def test_structure_and_empty_detection():
     assert is_empty_container(HTML) is False
     garbage = "<html><body><h1>Wartungsarbeiten</h1></body></html>"
     assert has_container_structure(garbage) is False
-    empty = '<div class="ilContainerBlock" id="bl_cntr_1"><div class="ilNoItems">leer</div></div>'
+    empty = (
+        '<div id="ilContentContainer"><div class="ilContainerBlock" id="bl_cntr_1">'
+        '<div class="ilNoItems">leer</div></div></div>'
+    )
     assert parse_container(empty, "https://x") == []
     assert is_empty_container(empty) is True
+    # Hinweis im Seitenrahmen (auch ohne Blöcke) ist ein Parse-Fehler, kein leerer Kurs.
+    chrome = (
+        '<div class="alert alert-info" role="status">Hinweis im Rahmen</div>'
+        '<div id="ilContentContainer"><h1>Kurs</h1></div>'
+    )
+    assert is_empty_container(chrome) is False
+    assert is_empty_container('<div class="alert-info">Wartung</div>') is False

@@ -310,15 +310,21 @@ def _setup_run(
     )
 
     def op(svc: Service) -> SetupResult:
-        user = username or setup_core.stored_username(svc.key)
-        if user is None:
+        # Spec §3.3: Prompt mit Default aus der Config; nur --username überspringt ihn.
+        # Spec §3.6: ohne TTY reicht --username oder der gespeicherte Name, ohne Prompt.
+        user = username
+        if not user:
+            stored = setup_core.stored_username(svc.key)
             if not interactive:
-                raise ConfigError(
-                    "Kein Benutzername bekannt.",
-                    hint=f"Ohne Terminal: `ilias setup --instance {svc.key} --username <name>` "
-                    "und Passwort (+ Code) zeilenweise über stdin",
-                )
-            user = prompts.ask_username(svc.instance.username_label)
+                if not stored:
+                    raise ConfigError(
+                        "Kein Benutzername bekannt.",
+                        hint=f"Ohne Terminal: `ilias setup --instance {svc.key} --username <name>` "
+                        "und Passwort (+ Code) zeilenweise über stdin",
+                    )
+                user = stored
+            else:
+                user = prompts.ask_username(svc.instance.username_label, default=stored)
 
         password = prompts.ask_password()
         otp_callback = prompts.ask_totp if svc.backend.uses_totp else None

@@ -82,7 +82,9 @@ def choose_instance(infos: list) -> str:
                 return current[index].key
             typer.echo(f"Ungültige Nummer {answer}: bitte 1 bis {len(current)} wählen.", err=True)
             continue
-        filtered = filter_instances(answer)
+        # Nur die schon gezeigte Liste weiter einschränken (auch nach `--filter`).
+        matched = {info.key for info in filter_instances(answer)}
+        filtered = [info for info in current if info.key in matched]
         if filtered:
             current = filtered
         else:
