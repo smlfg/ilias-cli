@@ -71,7 +71,7 @@ Für alle Befehle gilt: `--json` gibt maschinenlesbare Daten aus, ohne Flag komm
 
 ## 5. Authentifizierung & 2FA
 
-- **A1 (Must):** Das Passwort wird **nie** in Klartext gespeichert, geloggt oder an einen Agenten/LLM übergeben. Eingabe nur über einen sicheren Prompt (verdeckte TTY-Eingabe) oder ein sicheres Formular [S: Samuel gibt Passwörter nur so ein].
+- **A1 (Must):** Das Passwort wird **nie** in Klartext gespeichert, geloggt oder an einen Agenten/LLM übergeben. Eingabe nur über einen sicheren Prompt (verdeckte TTY-Eingabe) oder ein sicheres Formular [S: Samuel gibt Passwörter nur so ein]. **Ausnahme (Owner-Entscheid 2026-10-12, Komfort > Sicherheit):** mit `ilias login --save-password` (opt-in) werden Benutzername + Passwort im OS-Schlüsselbund gespeichert – nur dort, nie in Dateien oder Ausgaben, ohne Schlüsselbund gar nicht; das TOTP bleibt Pflicht (A2). Löschen mit `ilias logout --forget`; ein abgelehntes gespeichertes Passwort wird automatisch verworfen.
 - **A2 (Must):** 2FA (TOTP aus der Authenticator-App) wird interaktiv abgefragt. Das Tool speichert **kein TOTP-Secret**.
 - **A3 (Must):** Login-Ablauf: ILIAS `openidconnect.php` → Keycloak-Formular → TOTP → Redirect → ILIAS-Session-Cookie. Alternative als Fallback: Der Login läuft im Browser (z. B. Playwright, sichtbar), danach wird nur das Session-Cookie übernommen.
 - **A4 (Must):** Session-Cookies liegen im **OS-Schlüsselbund** (macOS Keychain, Linux Secret Service, Windows Credential Manager über `keyring`) oder in einer Datei mit `0600`. Sie werden nie ins Repo geschrieben, nie geloggt und nie in die MCP-Antwort gegeben.

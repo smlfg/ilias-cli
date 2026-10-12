@@ -143,3 +143,66 @@ class SessionStore:
             self._path().unlink()
         except FileNotFoundError:
             pass
+
+
+class CredentialStore:
+    """Benutzername + Passwort im OS-Schlüsselbund (opt-in ``--save-password``).
+
+    Nur Keyring, **nie** Datei-Fallback: ohne nutzbaren Schlüsselbund wird nichts
+    gespeichert. Das TOTP wird nie gespeichert.
+    """
+
+    def __init__(
+        self, instance_key: str, base_url: str, *, keyring_module: KeyringLike | None | object = None
+    ) -> None:
+        self.instance_key = instance_key
+        self.base_url = base_url
+        self._keyring_module = keyring_module
+
+    @property
+    def username(self) -> str:
+        return f"credentials:{self.instance_key}|{self.base_url}"
+
+    def _keyring(self) -> KeyringLike | None:
+        if self._keyring_module is not None:
+            return self._keyring_module  # type: ignore[return-value]
+        return _default_keyring()
+
+    @property
+    def available(self) -> bool:
+        return self._keyring() is not None
+
+    def save(self, username: str, password: str) -> bool:
+        keyring = self._keyring()
+        if keyring is None:
+            return False
+        payload = json.dumps({"username": username, "password": password}, separators=(",", ":"))
+        try:
+            keyring.set_password(SERVICE_NAME, self.username, payload)
+        except Exception:
+            return False
+        return True
+
+    def load(self) -> tuple[str, str] | None:
+        keyring = self._keyring()
+        if keyring is None:
+            return None
+        try:
+            payload = keyring.get_password(SERVICE_NAME, self.username)
+            data = json.loads(payload) if payload else None
+        except Exception:
+            return None
+        if not isinstance(data, dict) or not data.get("username") or not data.get("password"):
+            return None
+        return str(data["username"]), str(data["password"])
+
+    def clear(self) -> bool:
+        keyring = self._keyring()
+        if keyring is None:
+            return False
+        try:
+            existed = keyring.get_password(SERVICE_NAME, self.username) is not None
+            keyring.delete_password(SERVICE_NAME, self.username)
+        except Exception:
+            return False
+        return existed

@@ -17,8 +17,16 @@ Matrikelnummer. Danach Passwort und den TOTP-Code aus der Authenticator-App eing
 Session liegt im Schlüsselbund, `ilias status` prüft sie.
 
 ```bash
-ilias login
+ilias login                      # fragt Benutzername, Passwort, TOTP
+ilias login --save-password      # einmalig: merkt Benutzername + Passwort im Schlüsselbund
+ilias login                      # ab dann: nur noch TOTP-Code
+ilias logout --forget            # Session und gespeicherte Zugangsdaten löschen
 ```
+
+Mit `--save-password` liegt das Passwort im macOS-Schlüsselbund (bzw. Secret Service/Windows
+Credential Manager), nie in einer Datei. Wer an deinem entsperrten Rechner `ilias` startet,
+kommt damit bis zum TOTP; geschützt bleibt der Zugang durch den zweiten Faktor. Lehnt ILIAS das gespeicherte Passwort
+ab (z. B. nach Passwortwechsel), wird es gelöscht und beim nächsten Login wieder abgefragt.
 
 **3. Kurse finden.** Die Spalte `ID` ist die ref_id des Kurses:
 

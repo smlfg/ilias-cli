@@ -15,7 +15,7 @@ import typer
 
 from ilias_core import debuglog
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
-from ilias_core.errors import IliasError
+from ilias_core.errors import AuthenticationError, IliasError
 from ilias_core.models import (
     CourseContentsResult,
     CoursesResult,
@@ -30,6 +30,7 @@ from ilias_core.models import (
 )
 from ilias_core.secrets import Secret
 from ilias_core.service import Service, open_service
+from ilias_core.session import CredentialStore
 
 from . import output, prompts
 
@@ -122,6 +123,10 @@ def _run(
         ) from None
 
 
+def _credential_store(service: Service) -> CredentialStore:
+    return CredentialStore(service.instance.key, service.instance.base_url)
+
+
 def _is_moodle(service: Service) -> bool:
     return service.instance.lms == BACKEND_MOODLE
 
@@ -142,6 +147,14 @@ def login(
     username: str | None = typer.Option(
         None, "--username", help="Benutzername (sonst interaktive Abfrage)."
     ),
+    save_password: bool = typer.Option(
+        False,
+        "--save-password",
+        help=(
+            "Benutzername + Passwort nach erfolgreichem Login im OS-Schlüsselbund merken; "
+            "danach fragt `ilias login` nur noch das TOTP. Löschen: `ilias logout --forget`."
+        ),
+    ),
     debug: bool = DEBUG_OPTION,
 ) -> None:
     """Meldet sich an (ILIAS: OIDC/Keycloak oder SAML/Shibboleth; Moodle: Webservice-Token)."""
@@ -155,11 +168,38 @@ def login(
                     hint="Für Moodle reicht `ilias login --instance hs-mannheim`.",
                 )
             return backend.login_with_browser()
-        label = getattr(service.instance, "username_label", "Benutzername")
-        user = username or prompts.ask_username(label)
-        password = prompts.ask_password()
-        otp_callback = prompts.ask_totp if backend.uses_totp else None
-        return service.login(Credentials(username=user, password=Secret(password)), otp_callback)
+        creds = _credential_store(service)
+        stored = None if (username or save_password) else creds.load()
+        if stored is not None:
+            user, password = stored
+            output.print_info(f"Gespeicherte Zugangsdaten für {user} (Löschen: `ilias logout --forget`).")
+        else:
+            label = getattr(service.instance, "username_label", "Benutzername")
+            user = username or prompts.ask_username(label)
+            password = prompts.ask_password()
+
+        otp_asked = False
+
+        def ask_totp() -> str:
+            nonlocal otp_asked
+            otp_asked = True
+            return prompts.ask_totp()
+
+        otp_callback = ask_totp if backend.uses_totp else None
+        try:
+            result = service.login(Credentials(username=user, password=Secret(password)), otp_callback)
+        except AuthenticationError as exc:
+            # Gespeichertes Passwort abgelehnt (vor dem TOTP): verwerfen, sonst scheitert jeder Login.
+            if stored is not None and not otp_asked:
+                creds.clear()
+                exc.hint = "Gespeichertes Passwort wurde gelöscht. Neu: `ilias login --save-password`."
+            raise
+        if save_password:
+            if creds.save(user, password):
+                output.print_info("Benutzername und Passwort im Schlüsselbund gespeichert.")
+            else:
+                output.print_info("Kein Schlüsselbund verfügbar – Zugangsdaten nicht gespeichert.")
+        return result
 
     _, result = _run("login", json_output, instance, debug, op)
     if isinstance(result, MoodleLoginResult):
@@ -201,12 +241,21 @@ def status(
 def logout(
     json_output: bool = JSON_OPTION,
     instance: str | None = INSTANCE_OPTION,
+    forget: bool = typer.Option(
+        False, "--forget", help="Auch gespeicherten Benutzernamen + Passwort aus dem Schlüsselbund löschen."
+    ),
     debug: bool = DEBUG_OPTION,
 ) -> None:
     """Löscht die gespeicherte Session bzw. den Token der Instanz (lokal)."""
 
     service, result = _run("logout", json_output, instance, debug, lambda s: s.logout())
     assert isinstance(result, LogoutResult)
+    if forget:
+        forgotten = _credential_store(service).clear()
+        if not json_output:
+            output.print_info(
+                "Gespeicherte Zugangsdaten gelöscht." if forgotten else "Keine gespeicherten Zugangsdaten vorhanden."
+            )
     if _is_moodle(service):
         if json_output:
             output.print_json(result.to_json_dict())

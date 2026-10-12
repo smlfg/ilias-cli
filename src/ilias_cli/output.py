@@ -55,6 +55,11 @@ def print_status(status: SessionStatus) -> None:
     )
 
 
+def print_info(message: str) -> None:
+    """Hinweis auf stderr (stdout bleibt für --json sauber)."""
+    err_console.print(escape(message))
+
+
 def print_logout(removed: bool) -> None:
     if removed:
         console.print("[green]Session gelöscht.[/green]")
