@@ -81,6 +81,13 @@ ilias download 900101 -n                              # --dry-run: nur anzeigen
 - `--json`: `{ok, course, target_dir, summary{downloaded,skipped,planned,failed}, items[{ref_id,name,path,status,size,error_code,message}]}`.
 - Abschnitte der Kursseite („Inhalt“, Objektblöcke) werden nicht zu Ordnern, nur ILIAS-Ordner/Gruppen.
 
+**Grenzen (bewusst einfach gehalten):** „Aktuell“ heißt: Datei liegt am Zielpfad und ILIAS-ref_id +
+Änderungsdatum stimmen mit dem Manifest überein. Es gibt keinen Inhaltsvergleich (Hash):
+- Kopien außerhalb des Kursordners (z. B. vorher von Hand geladen) werden nicht erkannt → doppelt auf der Platte.
+- Eine von Hand an den Zielpfad gelegte Datei gilt dauerhaft als aktuell, auch wenn ILIAS neuer ist (`--force` hilft).
+- Dieselbe Datei in zwei Kursen wird zweimal geladen.
+- Liefert ILIAS kein Änderungsdatum, werden spätere Änderungen nicht erkannt.
+
 ## Tests
 
 Alle Tests laufen nur gegen localhost-Fake-Server; eine Netzwerk-Sperre lässt jeden
