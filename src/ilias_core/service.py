@@ -9,17 +9,28 @@ from __future__ import annotations
 
 import unicodedata
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from . import download as dl
 from .backends import get_backend
 from .config import Instance, load_instance
-from .errors import CourseAmbiguousError, CourseNotFoundError
+from .errors import (
+    CourseAmbiguousError,
+    CourseNotFoundError,
+    NotSupportedError,
+    ParserError,
+    PathNotFoundError,
+    PermissionDeniedError,
+)
 from .models import (
     ContentNode,
     Course,
     CourseContentsResult,
     CoursesResult,
     Credentials,
+    DownloadItem,
+    DownloadResult,
     FolderNode,
     LogoutResult,
     Module,
@@ -72,6 +83,81 @@ class Service:
             sections=sections,
             depth=depth,
         )
+
+
+    # -- F5 --------------------------------------------------------------
+    def download(
+        self,
+        query: str,
+        selector: str | None = None,
+        *,
+        out_dir: str | Path = ".",
+        dry_run: bool = False,
+        force: bool = False,
+        progress=None,
+    ) -> DownloadResult:
+        """Dateien eines Kurses (oder eines Ordners/einer Datei darin) lokal speichern (F5).
+
+        Lädt nur, was fehlt oder sich laut ILIAS geändert hat (Manifest im Kursordner);
+        ``force`` lädt alles neu, ``dry_run`` plant nur. Einzelne verweigerte Dateien
+        werden als ``failed`` gemeldet, der Rest läuft weiter; Session-/Netzfehler brechen ab.
+        """
+        if not self.backend.supports_download:
+            raise NotSupportedError(
+                f"`download` ist für {self.instance.lms} ({self.key}) noch nicht implementiert.",
+                hint="Derzeit nur ILIAS-Instanzen (z. B. --instance hhn).",
+            )
+        course = resolve_course(self.backend.courses(), query, instance=self.instance.key)
+        files = dl.plan_files(self.backend.course_contents(course.id, None))
+        chosen = dl.select(files, selector)
+        if selector and not chosen:
+            raise PathNotFoundError(
+                f"Keine Datei im Kurs {course.fullname!r} passt auf {selector!r}.",
+                hint=f"`ilias ls {course.id} --instance {self.key}` zeigt Pfade und ref_ids.",
+            )
+        course_dir = Path(out_dir).expanduser().resolve() / dl.safe_name(course.fullname)
+        manifest = dl.load_manifest(course_dir)
+        items: list[DownloadItem] = []
+        try:
+            for planned in chosen:
+                item = self._download_one(planned, course_dir, manifest, dry_run=dry_run, force=force)
+                items.append(item)
+                if progress:
+                    progress(item)
+        finally:
+            if not dry_run and any(item.status == "downloaded" for item in items):
+                dl.save_manifest(course_dir, manifest)
+        return DownloadResult(
+            instance=self.instance.key,
+            lms=self.instance.lms,
+            course=course.to_ref_dict(),
+            target_dir=str(course_dir),
+            selector=selector,
+            dry_run=dry_run,
+            items=items,
+        )
+
+    def _download_one(self, planned, course_dir: Path, manifest: dict, *, dry_run: bool, force: bool) -> DownloadItem:
+        rel = f"{course_dir.name}/{planned.relpath}"
+        base = {"ref_id": planned.ref_id, "name": planned.name, "path": rel, "timemodified": planned.timemodified}
+        if not planned.visible:
+            return DownloadItem(**base, status="skipped", size=planned.size, error_code="offline",
+                                message="In ILIAS offline (nicht freigegeben).")
+        if not force and dl.is_current(planned, course_dir, manifest):
+            local_size = (course_dir / planned.relpath).stat().st_size
+            return DownloadItem(**base, status="skipped", size=local_size)
+        if dry_run:
+            return DownloadItem(**base, status="planned", size=planned.size)
+        try:
+            got = self.backend.download_file(planned.fileurl, course_dir / planned.relpath, label=f"Datei {planned.name!r}")
+        except (PermissionDeniedError, ParserError) as exc:
+            return DownloadItem(**base, status="failed", error_code=exc.code, message=exc.message or str(exc))
+        manifest[dl.manifest_key(planned)] = {
+            "relpath": planned.relpath,
+            "timemodified": planned.timemodified,
+            "size": got.size,
+        }
+        return DownloadItem(**base, status="downloaded", size=got.size)
 
 
 def _courses_hint(instance: str | None) -> str:

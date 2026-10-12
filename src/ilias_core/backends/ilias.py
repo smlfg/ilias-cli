@@ -49,6 +49,7 @@ class IliasBackend(Backend):
     name = "ilias"
     supports_login = True
     supports_courses = True
+    supports_download = True
 
     def __init__(self, instance, *, client: IliasClient | None = None) -> None:
         super().__init__(instance)
@@ -104,6 +105,11 @@ class IliasBackend(Backend):
     def course_contents(self, course_id: int, depth: int | None = None) -> list[Section]:
         fetcher = self._get_fetcher()
         return self._load_sections(fetcher, course_id, level=2, depth=depth, visited={course_id})
+
+    # -- F5: Download ----------------------------------------------------
+    def download_file(self, fileurl: str, dest, *, label: str = "Datei"):
+        """Eine Datei über ihren Titel-Link (``cmd=sendfile``) laden; Session wie bei ``ls``."""
+        return self._get_fetcher().download(fileurl, dest, label=label)
 
     # -- Aufbau ----------------------------------------------------------
     def _get_fetcher(self) -> Fetcher:

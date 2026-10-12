@@ -110,6 +110,34 @@ def safe_url(url: str) -> str:
     return f"{parts.scheme}://{parts.netloc}{parts.path}" if parts.scheme else parts.path
 
 
+class DownloadedFile:
+    """Ergebnis eines Datei-Downloads (Pfad, Bytes, Typ, Dateiname laut Server)."""
+
+    def __init__(self, path, size: int, content_type: str | None, server_filename: str | None) -> None:
+        self.path = path
+        self.size = size
+        self.content_type = content_type
+        self.server_filename = server_filename
+
+
+def _disposition_filename(header: str | None) -> str | None:
+    """Dateiname aus ``Content-Disposition`` (``filename*=UTF-8''…`` vor ``filename=…``)."""
+
+    from urllib.parse import unquote
+
+    if not header:
+        return None
+    for part in header.split(";"):
+        key, _, value = part.strip().partition("=")
+        if key.lower() == "filename*" and "''" in value:
+            return unquote(value.split("''", 1)[1].strip('"')) or None
+    for part in header.split(";"):
+        key, _, value = part.strip().partition("=")
+        if key.lower() == "filename":
+            return value.strip().strip('"') or None
+    return None
+
+
 class IliasPage:
     """Antwort einer ILIAS-GET-Anfrage (HTML + finale URL + Status)."""
 
@@ -182,6 +210,86 @@ class Fetcher:
             f"{label}: zu viele Weiterleitungen ({safe_url(url)}).",
             hint=f"ILIAS-Adresse prüfen oder `ilias status --instance {self.key}`.",
         )
+
+    # -- Download (F5) ---------------------------------------------------
+    def download(self, url: str, dest, *, label: str = "Datei") -> DownloadedFile:
+        """Datei per GET in ``dest`` streamen (erst ``<dest>.part``, dann umbenennen).
+
+        Gleiche Prüfungen wie :meth:`get`: Weiterleitungen nur auf dem ILIAS-Host und nie
+        in den Login-Fluss (Exit 3), HTTP >= 500 -> Exit 4. Kommt statt einer Datei eine
+        HTML-Seite zurück, wird sie wie eine Seite klassifiziert (Anmeldeseite -> Exit 3,
+        Fehler-Alert/Umleitung -> ``permission_denied``), sonst ``ParserError``.
+        """
+
+        from pathlib import Path
+
+        dest = Path(dest)
+        current = urljoin(self.base_url + "/", url)
+        for _ in range(MAX_REDIRECTS + 1):
+            self._count(label)
+            try:
+                with self._client.stream("GET", current) as response:
+                    status = response.status_code
+                    if status >= 500:
+                        raise NetworkError(
+                            f"{label}: Serverfehler HTTP {status} ({safe_url(current)}).",
+                            hint=f"Später erneut versuchen; `ilias status --instance {self.key}` prüft die Session.",
+                        )
+                    if 300 <= status < 400:
+                        location = response.headers.get("location") or ""
+                        if not location:
+                            raise ParserError(f"{label}: Weiterleitung ohne Ziel ({safe_url(current)}).")
+                        target = urljoin(str(response.url), location)
+                        if is_auth_redirect(target, self.base_url):
+                            raise self._session_expired(label)
+                        current = target
+                        continue
+                    content_type = (response.headers.get("content-type") or "").lower()
+                    if status != 200 or content_type.startswith(("text/html", "application/xhtml")):
+                        response.read()
+                        page = self._classify(response, label, None)
+                        raise ParserError(
+                            f"{label}: Server lieferte eine Seite statt einer Datei "
+                            f"(HTTP {page.status}, {safe_url(page.url)}).",
+                            hint="Objekt ggf. kein Download (z. B. Weblink) oder Seite geändert.",
+                        )
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    part = dest.with_name(dest.name + ".part")
+                    size = 0
+                    try:
+                        with open(part, "wb") as handle:
+                            for chunk in response.iter_bytes():
+                                handle.write(chunk)
+                                size += len(chunk)
+                        part.replace(dest)
+                    except BaseException:
+                        part.unlink(missing_ok=True)
+                        raise
+                    return DownloadedFile(
+                        path=dest,
+                        size=size,
+                        content_type=content_type.split(";")[0].strip() or None,
+                        server_filename=_disposition_filename(response.headers.get("content-disposition")),
+                    )
+            except httpx.RequestError as exc:
+                raise NetworkError(
+                    f"{label}: Verbindung fehlgeschlagen ({type(exc).__name__}, {safe_url(current)}).",
+                    hint=f"Erreichbarkeit von {self.base_url} prüfen (ggf. VPN).",
+                ) from None
+        raise NetworkError(
+            f"{label}: zu viele Weiterleitungen ({safe_url(url)}).",
+            hint=f"ILIAS-Adresse prüfen oder `ilias status --instance {self.key}`.",
+        )
+
+    def _count(self, label: str) -> None:
+        if self.request_count >= self.max_requests:
+            raise CrawlLimitError(
+                f"{label}: Request-Obergrenze {self.max_requests} erreicht (crawl_limit).",
+                hint="`ILIAS_CLI_MAX_REQUESTS` erhöhen oder einen Unterordner/`--depth` wählen.",
+            )
+        self.request_count += 1
+        if self.interval > 0:
+            time.sleep(self.interval)
 
     def _send(self, url: str, label: str) -> httpx.Response:
         if self.request_count >= self.max_requests:

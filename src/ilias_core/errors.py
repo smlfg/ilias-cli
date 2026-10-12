@@ -130,3 +130,10 @@ class CrawlLimitError(IliasError):
 
     exit_code = EXIT_PARSE
     code = "crawl_limit"
+
+
+class PathNotFoundError(IliasError):
+    """`download <kurs> <pfad>`: Pfad oder ref_id passt auf keine Datei im Kurs."""
+
+    exit_code = EXIT_AUTH
+    code = "path_not_found"
