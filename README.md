@@ -4,6 +4,41 @@ CLI (später MCP-Server) für **ILIAS** (Hochschule Heilbronn, Uni Mannheim) und
 (Hochschule Mannheim). Anforderungen: [ANFORDERUNGEN.md](ANFORDERUNGEN.md), Vertrag:
 [INTERFACE.md](INTERFACE.md), Moodle-Details: [MOODLE.md](MOODLE.md).
 
+## Schnellstart (ILIAS HHN)
+
+**1. Installieren** (braucht [uv](https://docs.astral.sh/uv/)):
+
+```bash
+uv tool install --force "git+https://github.com/smlfg/ilias-cli@feat/download-f5"
+```
+
+**2. Anmelden.** Benutzername ist das HHN-Kürzel, **nicht** die
+Matrikelnummer. Danach Passwort und den TOTP-Code aus der Authenticator-App eingeben. Die
+Session liegt im Schlüsselbund, `ilias status` prüft sie.
+
+```bash
+ilias login
+```
+
+**3. Kurse finden.** Die Spalte `ID` ist die ref_id des Kurses:
+
+```bash
+ilias courses
+```
+
+**4. Inhalt ansehen.** Statt der ID geht auch ein Teil des Namens, z. B. `ilias ls "KI-Programmierung"`:
+
+![ilias ls zeigt den Kursbaum mit Ordnern und Dateien](docs/img/ls.svg)
+
+**5. Herunterladen.** Pro Kurs entsteht ein Ordner. Ein zweiter Lauf lädt nur neue oder
+geänderte Dateien:
+
+![ilias download lädt 8 Dateien, der zweite Lauf überspringt alle](docs/img/download.svg)
+
+Leere Ordner (z. B. noch nicht freigeschaltete Lösungen) werden übersprungen. Ordner, deren
+Ansicht das Tool nicht lesen kann, erscheinen als `failed` mit Link; der Rest wird trotzdem
+geladen.
+
 ## Instanzen
 
 `ilias_core` hat ein Backend pro Plattform (`ilias_core.backends`: `IliasBackend`,
@@ -18,7 +53,7 @@ CLI (später MCP-Server) für **ILIAS** (Hochschule Heilbronn, Uni Mannheim) und
 Jedes Profil lässt sich in `~/.config/ilias-cli/config.toml` (bzw.
 `$ILIAS_CLI_CONFIG_DIR/config.toml`) unter `[instances.<key>]` überschreiben oder neu
 anlegen (`lms = "ilias" | "moodle"`, `base_url`, bei ILIAS zusätzlich `client_id`, `auth`).
-`courses`/`ls` auf einer ILIAS-Instanz enden mit einer sauberen „nicht unterstützt"-Meldung.
+`courses`/`ls`/`download` laufen auf ILIAS (HHN getestet) und Moodle (`download` nur ILIAS).
 
 ```bash
 ilias login  --instance hhn                 # ILIAS HHN
