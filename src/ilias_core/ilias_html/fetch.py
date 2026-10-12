@@ -138,6 +138,21 @@ def _disposition_filename(header: str | None) -> str | None:
     return None
 
 
+def _is_delivered_file(disposition: str | None) -> bool:
+    """True, wenn ``Content-Disposition`` eine Datei ausliefert und keine ILIAS-Seite.
+
+    FileDelivery setzt bei HTML-/XHTML-Objekten ``text/html`` bzw. ``application/xhtml+xml``
+    zusammen mit ``attachment`` oder ``inline`` und einem Dateinamen. Login- und
+    Fehlerseiten tragen diesen Header nicht.
+    """
+
+    if not disposition:
+        return False
+    if disposition.split(";", 1)[0].strip().lower() == "attachment":
+        return True
+    return _disposition_filename(disposition) is not None
+
+
 class IliasPage:
     """Antwort einer ILIAS-GET-Anfrage (HTML + finale URL + Status)."""
 
@@ -219,6 +234,8 @@ class Fetcher:
         in den Login-Fluss (Exit 3), HTTP >= 500 -> Exit 4. Kommt statt einer Datei eine
         HTML-Seite zurück, wird sie wie eine Seite klassifiziert (Anmeldeseite -> Exit 3,
         Fehler-Alert/Umleitung -> ``permission_denied``), sonst ``ParserError``.
+        ``text/html`` mit ``Content-Disposition`` (Anhang oder Dateiname) ist die Datei
+        selbst, z. B. ein hochgeladenes HTML-Objekt, und wird gespeichert.
         """
 
         from pathlib import Path
@@ -245,7 +262,11 @@ class Fetcher:
                         current = target
                         continue
                     content_type = (response.headers.get("content-type") or "").lower()
-                    if status != 200 or content_type.startswith(("text/html", "application/xhtml")):
+                    disposition = response.headers.get("content-disposition")
+                    is_html_page = content_type.startswith(
+                        ("text/html", "application/xhtml")
+                    ) and not _is_delivered_file(disposition)
+                    if status != 200 or is_html_page:
                         response.read()
                         page = self._classify(response, label, None)
                         raise ParserError(

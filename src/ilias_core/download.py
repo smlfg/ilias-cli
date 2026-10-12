@@ -22,6 +22,8 @@ from .models import FileNode, FolderNode, Module, Section
 MANIFEST_NAME = ".ilias-download.json"
 _BAD_CHARS = re.compile(r'[\x00-\x1f\x7f\\:*?"<>|]')
 _MAX_NAME = 180
+# Schrägstrich, der zum Titel gehört. ``/`` bleibt der Trenner zwischen Titeln.
+_TITLE_SLASH = "\x1f"
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,32 @@ class PlannedFile:
     size: int | None
     timemodified: str | None
     visible: bool
+
+
+def _title_segment(name: str) -> str:
+    """Ein ILIAS-Titel als Pfadsegment: ``/`` im Namen ist keine Ordnergrenze."""
+
+    return (name or "").replace("/", _TITLE_SLASH)
+
+
+def _ilias_components(planned: PlannedFile) -> list[str]:
+    folders = [part.replace(_TITLE_SLASH, "/") for part in planned.ilias_path.split("/") if part]
+    return [*folders, planned.name]
+
+
+def _matches_ilias(planned: PlannedFile, needle: str) -> bool:
+    """True, wenn ``needle`` der ILIAS-Pfad oder ein Präfix aus ganzen Titeln ist.
+
+    ``WiSe 2026`` trifft ``WiSe 2026/27`` nicht: der Schrägstrich gehört zum Titel,
+    genau wie auf der Platte (``safe_name`` macht daraus ``WiSe 2026-27``).
+    """
+
+    acc = ""
+    for part in _ilias_components(planned):
+        acc = part if not acc else f"{acc}/{part}"
+        if acc.lower() == needle:
+            return True
+    return False
 
 
 def safe_name(name: str) -> str:
@@ -78,7 +106,10 @@ def _walk_children(nodes, folder: tuple[str, ...], ilias_path: str, out: list[Pl
     for node in nodes or []:
         if isinstance(node, FolderNode):
             _walk_children(
-                node.children, (*folder, safe_name(node.name)), f"{ilias_path}{node.name}/", out
+                node.children,
+                (*folder, safe_name(node.name)),
+                f"{ilias_path}{_title_segment(node.name)}/",
+                out,
             )
         elif isinstance(node, FileNode):
             out.append(
@@ -105,7 +136,9 @@ def plan_files(sections: list[Section]) -> list[PlannedFile]:
             if planned:
                 out.append(planned)
             elif module.modname in ("fold", "grp") and module.children:
-                _walk_children(module.children, (safe_name(module.name),), f"/{module.name}/", out)
+                _walk_children(
+                    module.children, (safe_name(module.name),), f"/{_title_segment(module.name)}/", out
+                )
     return _dedupe(out)
 
 
@@ -143,13 +176,11 @@ def select(files: list[PlannedFile], selector: str | None) -> list[PlannedFile]:
     for planned in files:
         rel = planned.relpath.lower()
         stem = rel.rsplit(".", 1)[0] if "." in rel.rsplit("/", 1)[-1] else rel
-        ilias_full = f"{planned.ilias_path}{planned.name}".strip("/").lower()
         if (
             rel == needle
             or stem == needle
-            or ilias_full == needle
             or rel.startswith(needle + "/")
-            or ilias_full.startswith(needle + "/")
+            or _matches_ilias(planned, needle)
         ):
             hits.append(planned)
     return hits

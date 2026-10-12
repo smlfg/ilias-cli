@@ -143,7 +143,17 @@ class HhnWorld(FakeWorld):
         data = self.file_bytes(ref)
         rec._delivered = ref
         handler.send_response(200)
-        handler.send_header("Content-Type", "application/pdf" if suffix == "pdf" else "application/octet-stream")
+        # ILIAS FileDelivery: HTML/XHTML bleibt text/html bzw. application/xhtml+xml,
+        # mit Content-Disposition. octet-stream würde den Seiten-Check im Client verstecken.
+        if suffix == "pdf":
+            ctype = "application/pdf"
+        elif suffix in ("html", "htm"):
+            ctype = "text/html; charset=UTF-8"
+        elif suffix == "xhtml":
+            ctype = "application/xhtml+xml"
+        else:
+            ctype = "application/octet-stream"
+        handler.send_header("Content-Type", ctype)
         handler.send_header("Content-Length", str(len(data)))
         handler.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + urllib.parse.quote(name))
         handler.end_headers()

@@ -45,6 +45,38 @@ def test_select_by_path_ref_and_prefix():
     assert dl.select(files, None) == files
 
 
+def test_select_slash_in_title_is_one_component():
+    """``WiSe 2026`` ist nicht der Ordner ``WiSe 2026/27``; lokal heißt der ``WiSe 2026-27``."""
+
+    year = FolderNode(name="2026", path="/2026/", ref_id=2, children=[
+        FileNode(name="Plan", path="/2026/", fileurl="u", suffix="pdf", ref_id=3),
+    ])
+    wise = FolderNode(name="WiSe 2026/27", path="/WiSe 2026/27/", ref_id=4, children=[
+        FileNode(name="Blatt", path="/WiSe 2026/27/", fileurl="u", suffix="pdf", ref_id=5),
+        FileNode(name="Teil 1/2", path="/WiSe 2026/27/", fileurl="u2", suffix="pdf", ref_id=6),
+    ])
+    files = dl.plan_files([Section(id=1, number=0, name="Inhalt", modules=[
+        Module(id=1, ref_id=1, name="Kurse", modname="fold", children=[year, wise]),
+    ])])
+    assert [f.relpath for f in files] == [
+        "Kurse/2026/Plan.pdf",
+        "Kurse/WiSe 2026-27/Blatt.pdf",
+        "Kurse/WiSe 2026-27/Teil 1-2.pdf",
+    ]
+    assert [f.ref_id for f in dl.select(files, "Kurse/WiSe 2026")] == []
+    assert [f.ref_id for f in dl.select(files, "Kurse/2026")] == [3]
+    assert [f.ref_id for f in dl.select(files, "Kurse/WiSe 2026/27")] == [5, 6]
+    assert [f.ref_id for f in dl.select(files, "Kurse/WiSe 2026-27")] == [5, 6]
+    assert [f.ref_id for f in dl.select(files, "Kurse/WiSe 2026/27/Teil 1/2")] == [6]
+    assert dl.select(files, "Kurse/WiSe 2026/27/Teil 1") == []
+    top = dl.plan_files([Section(id=1, number=0, name="Inhalt", modules=[
+        Module(id=9, ref_id=9, name="Skript: Teil 1/2", modname="file", fileurl="u", suffix="pdf"),
+    ])])
+    assert dl.select(top, "Skript: Teil 1") == []
+    assert [f.ref_id for f in dl.select(top, "Skript: Teil 1/2")] == [9]
+    assert [f.ref_id for f in dl.select(top, "Skript_ Teil 1-2")] == [9]
+
+
 def test_safe_name():
     assert dl.safe_name("WiSe 2026/27") == "WiSe 2026-27"
     assert dl.safe_name('a:b*c?"d<e>|f') == "a_b_c__d_e__f"
