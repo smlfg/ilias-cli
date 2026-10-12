@@ -95,6 +95,54 @@ def _walk_children(nodes, folder: tuple[str, ...], ilias_path: str, out: list[Pl
             )
 
 
+@dataclass(frozen=True)
+class UnreadableFolder:
+    ref_id: int | None
+    name: str
+    #: Ordnerpfad relativ zum Kursordner (``Übungsblätter/Lösungen``)
+    relpath: str
+    error: str
+
+
+def unreadable_folders(sections: list[Section]) -> list[UnreadableFolder]:
+    """Ordner, deren Seite nicht gelesen werden konnte (``error`` am Knoten)."""
+
+    out: list[UnreadableFolder] = []
+
+    def walk(nodes, folder: tuple[str, ...]) -> None:
+        for node in nodes or []:
+            if isinstance(node, FolderNode):
+                here = (*folder, safe_name(node.name))
+                if node.error:
+                    out.append(UnreadableFolder(node.ref_id, node.name, "/".join(here), node.error))
+                walk(node.children, here)
+
+    for section in sections:
+        for module in section.modules:
+            if module.modname in ("fold", "grp"):
+                here = (safe_name(module.name),)
+                if module.error:
+                    out.append(UnreadableFolder(module.ref_id, module.name, here[0], module.error))
+                walk(module.children, here)
+    return out
+
+
+def select_folders(folders: list[UnreadableFolder], selector: str | None) -> list[UnreadableFolder]:
+    """Unlesbare Ordner, die zur Auswahl gehören (gleiche Regeln wie :func:`select`)."""
+
+    if not selector or not selector.strip():
+        return folders
+    text = unicodedata.normalize("NFC", selector.strip()).strip("/")
+    if text.isdigit():
+        return [f for f in folders if f.ref_id == int(text)]
+    needle = text.lower()
+    return [
+        f for f in folders
+        if f.relpath.lower() == needle or f.relpath.lower().startswith(needle + "/")
+        or needle.startswith(f.relpath.lower() + "/")
+    ]
+
+
 def plan_files(sections: list[Section]) -> list[PlannedFile]:
     """Alle Dateien des Baums in Ausgabe-Reihenfolge; doppelte Zielpfade werden eindeutig."""
 

@@ -108,16 +108,35 @@ class Service:
                 hint="Derzeit nur ILIAS-Instanzen (z. B. --instance hhn).",
             )
         course = resolve_course(self.backend.courses(), query, instance=self.instance.key)
-        files = dl.plan_files(self.backend.course_contents(course.id, None))
+        sections = self.backend.course_contents(course.id, None)
+        files = dl.plan_files(sections)
         chosen = dl.select(files, selector)
-        if selector and not chosen:
+        broken = dl.select_folders(dl.unreadable_folders(sections), selector)
+        if selector and not chosen and not broken:
             raise PathNotFoundError(
                 f"Keine Datei im Kurs {course.fullname!r} passt auf {selector!r}.",
                 hint=f"`ilias ls {course.id} --instance {self.key}` zeigt Pfade und ref_ids.",
             )
         course_dir = Path(out_dir).expanduser().resolve() / dl.safe_name(course.fullname)
         manifest = dl.load_manifest(course_dir)
-        items: list[DownloadItem] = []
+        items: list[DownloadItem] = [
+            DownloadItem(
+                ref_id=folder.ref_id,
+                name=folder.name,
+                path=f"{course_dir.name}/{folder.relpath}/",
+                status="failed",
+                error_code="parse_error",
+                message=(
+                    "Ordnerseite nicht lesbar, Inhalt fehlt"
+                    + (f" – im Browser: {self.instance.normalized_base_url}/goto.php?target=fold_{folder.ref_id}"
+                       if folder.ref_id else "")
+                ),
+            )
+            for folder in broken
+        ]
+        for item in items:
+            if progress:
+                progress(item)
         try:
             for planned in chosen:
                 item = self._download_one(planned, course_dir, manifest, dry_run=dry_run, force=force)

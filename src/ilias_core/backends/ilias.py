@@ -124,8 +124,10 @@ class IliasBackend(Backend):
         page = fetcher.get(CONTAINER_PATH.format(ref=ref), label=label, expect_ref=ref)
         blocks = container_parser.parse_container(page.html, self.base_url)
         if not blocks and not container_parser.is_empty_container(page.html):
+            view = container_parser.guess_view(page.html)
             raise ParserError(
-                f"{label}: erwartete Container-Struktur fehlt in {safe_url(page.url)}.",
+                f"{label} (ref_id {ref}): erwartete Container-Struktur fehlt in {safe_url(page.url)}"
+                + (f" – erkannt: {view}" if view else "") + ".",
                 hint=f"`ilias ls <kurs> --instance {self.instance.key}` erneut versuchen; Seite ggf. geändert.",
             )
         return blocks
@@ -157,10 +159,14 @@ class IliasBackend(Backend):
         typ = item.type
         name = props_parser.decode_text(item.name)
         children: list | None
+        error: str | None = None
         if typ in COLLAPSED_TYPES:
             children = None
         elif typ in CONTAINER_TYPES and item.ref_id and self._should_descend(level + 1, depth):
-            children = self._folder_children(fetcher, item, level=level, depth=depth, visited=visited)
+            try:
+                children = self._folder_children(fetcher, item, level=level, depth=depth, visited=visited)
+            except ParserError as exc:
+                children, error = [], self._unreadable(exc)
         else:
             children = []
         url = self._resolve_url(item.href) or None
@@ -188,6 +194,7 @@ class IliasBackend(Backend):
             visible=not item.offline,
             children=children,
             ref_id=item.ref_id,
+            error=error,
         )
 
     def _folder_children(
@@ -225,13 +232,19 @@ class IliasBackend(Backend):
         if typ in CONTAINER_TYPES:
             path = f"{base_path}{name}/"
             children: list = []
+            error: str | None = None
             if item.ref_id and self._should_descend(level + 1, depth) and item.ref_id not in visited:
                 visited.add(item.ref_id)
-                blocks = self._load_blocks(fetcher, item.ref_id, label="Unterordnerseite")
-                children = self._nodes_from_blocks(
-                    fetcher, blocks, base_path=path, level=level + 1, depth=depth, visited=visited
-                )
-            return FolderNode(name=name, path=path, children=children, ref_id=item.ref_id, visible=visible)
+                try:
+                    blocks = self._load_blocks(fetcher, item.ref_id, label="Unterordnerseite")
+                    children = self._nodes_from_blocks(
+                        fetcher, blocks, base_path=path, level=level + 1, depth=depth, visited=visited
+                    )
+                except ParserError as exc:
+                    children, error = [], self._unreadable(exc)
+            return FolderNode(
+                name=name, path=path, children=children, ref_id=item.ref_id, visible=visible, error=error
+            )
         if typ == "file":
             suffix, size, size_text, timemodified = props_parser.parse_file_props(item.props)
             return FileNode(
@@ -253,6 +266,15 @@ class IliasBackend(Backend):
             visible=visible,
             children=None,
         )
+
+    @staticmethod
+    def _unreadable(exc: ParserError) -> str:
+        """Ordnerseite unlesbar (z. B. Kachelansicht): Ordner bleibt im Baum, Rest läuft weiter.
+
+        Nur ``ParserError``; Session-Ende (Exit 3), Netz (Exit 4), fehlende Rechte und das
+        Request-Limit brechen weiterhin ab.
+        """
+        return f"parse_error: {exc.message or exc}"
 
     @staticmethod
     def _should_descend(child_level: int, depth: int | None) -> bool:

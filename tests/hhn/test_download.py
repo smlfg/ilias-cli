@@ -147,3 +147,32 @@ def test_no_secrets_in_output(logged_in: HhnHarness):
     assert "geladen" in r.stdout
     manifest = (Path(json.loads(h.run("download", COURSE, "-o", "dl", "--json").stdout)["target_dir"]) / ".ilias-download.json").read_text()
     assert "il_wac_token" not in manifest and "PHPSESSID" not in manifest
+
+
+def test_unreadable_subfolder_does_not_stop_download(logged_in: HhnHarness):
+    """Live-Befund 12.10.: eine Ordnerseite, die der Parser nicht kennt, darf nicht alles abbrechen."""
+    h = logged_in
+    h.world.container_modes[900202] = "garbage"  # "Übungsblätter/Lösungen"
+    r = h.run("download", COURSE, "-o", "dl", "--json")
+    assert r.exit_code == 1, str(r)
+    data = json.loads(r.stdout)
+    failed = _items(data, "failed")
+    assert [(i["ref_id"], i["error_code"]) for i in failed] == [(900202, "parse_error")]
+    assert failed[0]["path"].endswith("Übungsblätter/Lösungen/")
+    assert "goto.php?target=fold_900202" in failed[0]["message"]
+    assert data["summary"]["downloaded"] == 6  # alles außer "Lösung Blatt 2"
+    # Auswahl genau dieses Ordners: kein path_not_found, sondern der Ordnerfehler
+    r = h.run("download", COURSE, "Übungsblätter/Lösungen", "-o", "dl", "--json")
+    assert r.exit_code == 1 and json.loads(r.stdout)["summary"]["failed"] == 1, str(r)
+
+
+def test_ls_marks_unreadable_subfolder(logged_in: HhnHarness):
+    h = logged_in
+    h.world.container_modes[900202] = "garbage"
+    data = ok_json(h.run("ls", COURSE, "--json"))
+    from .helpers import find
+
+    node = find(data, "Lösungen")
+    assert node["children"] == [] and node["error"].startswith("parse_error")
+    r = h.run("ls", COURSE)
+    assert r.exit_code == 0 and "nicht lesbar" in r.stdout, str(r)

@@ -274,9 +274,11 @@ class FolderNode:
     children: list[ContentNode] = field(default_factory=list)
     ref_id: int | None = None
     visible: bool = True
+    #: gesetzt, wenn die Ordnerseite nicht gelesen werden konnte (children dann leer)
+    error: str | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
+        data = {
             "type": "folder",
             "name": self.name,
             "path": self.path,
@@ -284,6 +286,9 @@ class FolderNode:
             "visible": self.visible,
             "children": [child.to_json_dict() for child in self.children],
         }
+        if self.error:
+            data["error"] = self.error
+        return data
 
 
 @dataclass(frozen=True)
@@ -379,6 +384,8 @@ class Module:
     fileurl: str | None = None
     #: ILIAS: ref_id des Objekts (gleich ``id``, Spec §6.2); Moodle lässt es leer.
     ref_id: int | None = None
+    #: gesetzt, wenn die Ordnerseite nicht gelesen werden konnte (children dann leer)
+    error: str | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {"id": self.id}
@@ -395,7 +402,7 @@ class Module:
                 None if self.children is None else [child.to_json_dict() for child in self.children]
             ),
         }
-        for key in ("size", "size_text", "suffix", "mimetype", "timemodified", "fileurl"):
+        for key in ("size", "size_text", "suffix", "mimetype", "timemodified", "fileurl", "error"):
             value = getattr(self, key)
             if value is not None:
                 data[key] = value

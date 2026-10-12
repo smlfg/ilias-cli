@@ -82,3 +82,10 @@ def test_structure_and_empty_detection():
     empty = '<div class="ilContainerBlock" id="bl_cntr_1"><div class="ilNoItems">leer</div></div>'
     assert parse_container(empty, "https://x") == []
     assert is_empty_container(empty) is True
+
+
+def test_guess_view_tiles_and_unknown():
+    from ilias_core.ilias_html.container import guess_view
+
+    assert guess_view('<div class="il-deck"><div class="il-card"><a href="x">A</a></div></div>').startswith("Kachel")
+    assert guess_view("<p>nix</p>") is None

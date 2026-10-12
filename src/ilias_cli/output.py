@@ -229,10 +229,14 @@ def _offline_mark(visible: bool) -> str:
     return f" {escape('[offline]')}" if not visible else ""
 
 
+def _error_mark(node) -> str:
+    return " [yellow]⚠ Ordnerseite nicht lesbar[/yellow]" if getattr(node, "error", None) else ""
+
+
 def _render_children(branch: Tree, children: list | None) -> None:
     for child in children or []:
         if isinstance(child, FolderNode):
-            sub = branch.add(f"📁 {escape(child.name)}{_offline_mark(child.visible)}")
+            sub = branch.add(f"📁 {escape(child.name)}{_offline_mark(child.visible)}{_error_mark(child)}")
             _render_children(sub, child.children)
         elif isinstance(child, FileNode):
             size = _human_size(child.size)
@@ -264,7 +268,7 @@ def _contents_tree(result: CourseContentsResult) -> Tree:
             if module.modname == "url":
                 branch.add(_url_label(module))
                 continue
-            module_branch = branch.add(_module_label(module))
+            module_branch = branch.add(_module_label(module) + _error_mark(module))
             _render_children(module_branch, module.children)
     return root
 

@@ -145,6 +145,19 @@ def is_empty_container(html: str) -> bool:
     return any(soup.select_one(selector) is not None for selector in EMPTY_SELECTORS)
 
 
+def guess_view(html: str) -> str | None:
+    """Grobe Diagnose einer nicht erkannten Container-Seite (nur Klassennamen, keine Inhalte)."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    if soup.select_one(".il-deck, .il-card, .ilContainerTileRows, .il-item-group-items .il-card"):
+        return "Kachelansicht (noch nicht unterstützt)"
+    if soup.select_one("table.table, .ilTableOuter"):
+        return "Tabellenansicht (noch nicht unterstützt)"
+    if soup.select_one(".il-item, .il-std-item"):
+        return "neue Listenansicht (il-item, noch nicht unterstützt)"
+    return None
+
+
 def parse_container(html: str, base_url: str = "") -> list[ContainerBlock]:
     """Alle Blöcke (Abschnitte) der Seite in Seitenreihenfolge."""
 
