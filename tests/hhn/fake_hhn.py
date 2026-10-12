@@ -143,7 +143,9 @@ class HhnWorld(FakeWorld):
         data = self.file_bytes(ref)
         rec._delivered = ref
         handler.send_response(200)
-        handler.send_header("Content-Type", "application/pdf" if suffix == "pdf" else "application/octet-stream")
+        # wie HHN: .html-Dateien als text/html (mit attachment), PDFs als application/pdf
+        ctype = {"pdf": "application/pdf", "html": "text/html;charset=UTF-8"}.get(suffix, "application/octet-stream")
+        handler.send_header("Content-Type", ctype)
         handler.send_header("Content-Length", str(len(data)))
         handler.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + urllib.parse.quote(name))
         handler.end_headers()

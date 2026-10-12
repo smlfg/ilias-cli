@@ -28,6 +28,7 @@ PROPERTY_SELECTORS = ("div.il_ItemProperties span.il_ItemProperty", "span.il_Ite
 ALERT_SELECTOR = ".il_ItemAlertProperty"
 ICON_SELECTORS = ("img.ilListItemIcon", "div.ilContainerListItemIcon img", "img")
 EMPTY_SELECTORS = (".ilNoItems", ".alert-info")
+CENTER_COL_SELECTOR = "#il_center_col"
 
 _STORE_URL_RE = re.compile(r"cont_block_id=itgr_(\d+)", re.IGNORECASE)
 _DATA_LIST_ITEM_RE = re.compile(r"lg_div_(\d+)_pref_(\d+)")
@@ -139,10 +140,15 @@ def has_container_structure(html: str) -> bool:
 
 
 def is_empty_container(html: str) -> bool:
-    """Leerer Kurs/Ordner mit Leer-Hinweis (``.ilNoItems``/``.alert-info``)."""
+    """Leerer Kurs/Ordner: Leer-Hinweis (``.ilNoItems``/``.alert-info``) oder, ab ILIAS 9
+    ohne Hinweis, eine vorhandene, aber völlig leere Mittelspalte ``#il_center_col``
+    (z. B. Ordner, dessen Inhalt für Studierende noch nicht freigeschaltet ist)."""
 
     soup = BeautifulSoup(html, "html.parser")
-    return any(soup.select_one(selector) is not None for selector in EMPTY_SELECTORS)
+    if any(soup.select_one(selector) is not None for selector in EMPTY_SELECTORS):
+        return True
+    center = soup.select_one(CENTER_COL_SELECTOR)
+    return center is not None and center.find(True) is None and not center.get_text(strip=True)
 
 
 def guess_view(html: str) -> str | None:

@@ -89,3 +89,16 @@ def test_guess_view_tiles_and_unknown():
 
     assert guess_view('<div class="il-deck"><div class="il-card"><a href="x">A</a></div></div>').startswith("Kachel")
     assert guess_view("<p>nix</p>") is None
+
+def test_empty_center_column_is_empty_container():
+    # ILIAS 9.24: leerer Ordner ohne .ilNoItems, nur eine leere Mittelspalte (HHN "Solutions")
+    empty = (
+        '<html><head><title>Inhalt: Solutions: HHN ILIAS</title></head><body>'
+        '<div id="ilContentContainer"><div class="ilTabsContentOuter">'
+        '<div class="col-sm-12" id="il_center_col">\n</div></div></div></body></html>'
+    )
+    assert parse_container(empty, "https://x") == []
+    assert is_empty_container(empty) is True
+    # Mittelspalte mit unbekanntem Inhalt bleibt ein Parserfehler-Kandidat
+    changed = '<div id="il_center_col"><div class="neues-layout">Datei.pdf</div></div>'
+    assert is_empty_container(changed) is False

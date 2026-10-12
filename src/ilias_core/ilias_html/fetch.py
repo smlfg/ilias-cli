@@ -245,7 +245,12 @@ class Fetcher:
                         current = target
                         continue
                     content_type = (response.headers.get("content-type") or "").lower()
-                    if status != 200 or content_type.startswith(("text/html", "application/xhtml")):
+                    # Echte .html-Dateien kommen als text/html, aber mit Content-Disposition: attachment.
+                    disposition = (response.headers.get("content-disposition") or "").lower()
+                    is_attachment = disposition.startswith("attachment")
+                    if status != 200 or (
+                        content_type.startswith(("text/html", "application/xhtml")) and not is_attachment
+                    ):
                         response.read()
                         page = self._classify(response, label, None)
                         raise ParserError(
