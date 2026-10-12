@@ -443,3 +443,67 @@ class CourseContentsResult:
             "sections": [section.to_json_dict() for section in self.sections],
             "timestamp": self.timestamp,
         }
+
+
+# ---------------------------------------------------------------- F5: Download
+#: Status je Datei: geladen, übersprungen (aktuell), geplant (--dry-run), fehlgeschlagen
+DOWNLOAD_STATUSES = ("downloaded", "skipped", "planned", "failed")
+
+
+@dataclass(frozen=True)
+class DownloadItem:
+    ref_id: int | None
+    name: str
+    #: lokaler Pfad relativ zum Zielordner (``<Kurs>/<Ordner>/<Datei>``)
+    path: str
+    status: str
+    size: int | None = None
+    timemodified: str | None = None
+    error_code: str | None = None
+    message: str | None = None
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "ref_id": self.ref_id,
+            "name": self.name,
+            "path": self.path,
+            "status": self.status,
+            "size": self.size,
+            "timemodified": self.timemodified,
+            "error_code": self.error_code,
+            "message": self.message,
+        }
+
+
+@dataclass(frozen=True)
+class DownloadResult:
+    instance: str
+    lms: str
+    course: dict[str, Any]
+    #: absoluter Zielordner des Kurses
+    target_dir: str
+    selector: str | None = None
+    dry_run: bool = False
+    items: list[DownloadItem] = field(default_factory=list)
+    timestamp: str = field(default_factory=now_iso)
+
+    def count(self, status: str) -> int:
+        return sum(1 for item in self.items if item.status == status)
+
+    @property
+    def ok(self) -> bool:
+        return self.count("failed") == 0
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "instance": self.instance,
+            "lms": self.lms,
+            "course": self.course,
+            "target_dir": self.target_dir,
+            "selector": self.selector,
+            "dry_run": self.dry_run,
+            "summary": {status: self.count(status) for status in DOWNLOAD_STATUSES},
+            "items": [item.to_json_dict() for item in self.items],
+            "timestamp": self.timestamp,
+        }

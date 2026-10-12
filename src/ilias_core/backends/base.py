@@ -17,6 +17,8 @@ class Backend(abc.ABC):
     supports_login: bool = False
     #: False, wenn courses/ls (F2/F3) für dieses LMS nicht implementiert sind
     supports_courses: bool = True
+    #: False, wenn `download` (F5) für dieses LMS nicht implementiert ist
+    supports_download: bool = False
     uses_totp: bool = False
 
     def __init__(self, instance: Instance) -> None:
@@ -58,3 +60,12 @@ class Backend(abc.ABC):
         ``depth`` erlaubt es dem Backend, nicht benötigte Ordnerseiten gar nicht
         erst zu laden (ILIAS, Spec §6.1). Moodle ignoriert den Parameter.
         """
+
+    def download_file(self, fileurl: str, dest: Any, *, label: str = "Datei") -> Any:
+        """Eine Datei nach ``dest`` laden (F5). Default: nicht unterstützt."""
+        from ..errors import NotSupportedError
+
+        raise NotSupportedError(
+            f"`download` ist für {self.instance.lms} ({self.key}) noch nicht implementiert.",
+            hint="Derzeit nur ILIAS-Instanzen (z. B. --instance hhn).",
+        )

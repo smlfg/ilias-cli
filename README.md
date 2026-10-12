@@ -11,8 +11,8 @@ CLI (später MCP-Server) für **ILIAS** (Hochschule Heilbronn, Uni Mannheim) und
 
 | `--instance` | LMS | Login | Befehle |
 |---|---|---|---|
-| `hhn` (Default) | ILIAS | OIDC/Keycloak (+ TOTP) | login, status, logout |
-| `uni-mannheim` | ILIAS | SAML/Shibboleth | login, status, logout |
+| `hhn` (Default) | ILIAS | OIDC/Keycloak (+ TOTP) | login, status, logout, courses, ls, **download** |
+| `uni-mannheim` | ILIAS | SAML/Shibboleth | login, status, logout, courses, ls, download (ungetestet) |
 | `hs-mannheim` | Moodle | Webservice-Token (`moodle_mobile_app`) | login, status, logout, courses, ls |
 
 Jedes Profil lässt sich in `~/.config/ilias-cli/config.toml` (bzw.
@@ -28,6 +28,23 @@ ilias courses --instance hs-mannheim
 ilias ls PR1 --instance hs-mannheim --depth 2
 ilias logout --instance hs-mannheim
 ```
+
+### Download (F5, nur ILIAS)
+
+```bash
+ilias download 900101 -o ~/Studium                    # ganzer Kurs -> ~/Studium/<Kursname>/<Ordner>/…
+ilias download "KI-Programmierung" "Übungsblätter"    # nur ein Ordner (Pfad relativ zum Kurs)
+ilias download 900101 900311                          # eine Datei per ref_id (aus `ilias ls --json`)
+ilias download 900101 -n                              # --dry-run: nur anzeigen
+```
+
+- Zweiter Lauf lädt nur neue oder in ILIAS geänderte Dateien (Manifest `.ilias-download.json`
+  im Kursordner). Von Hand abgelegte Dateien mit gleichem Namen werden nicht überschrieben;
+  `--force` lädt trotzdem neu.
+- Offline-Objekte werden übersprungen. Einzelne verweigerte Dateien stehen als `failed` in der
+  Ausgabe, der Rest wird geladen, Exit-Code dann 1. Session abgelaufen -> Exit 3, Server -> Exit 4.
+- `--json`: `{ok, course, target_dir, summary{downloaded,skipped,planned,failed}, items[{ref_id,name,path,status,size,error_code,message}]}`.
+- Abschnitte der Kursseite („Inhalt“, Objektblöcke) werden nicht zu Ordnern, nur ILIAS-Ordner/Gruppen.
 
 ## Tests
 

@@ -10,6 +10,9 @@ ILIAS-Session) und ergänzt die Seiten, die `ilias courses` und `ilias ls` brauc
   GET {ilias}/ilias.php?baseClass=ilrepositorygui&ref_id=<ref>  -> Container-Seite (Kurs/Ordner/Gruppe);
                                                                    unbekannte/verbotene ref -> 302 ref_id=1
   GET {ilias}/ilias.php?baseClass=ilrepositorygui&ref_id=1      -> Magazin-Wurzel: Fehler-Alert + Kategorien
+  GET {ilias}/ilias.php?…cmdClass=ilObjFileGUI&cmd=sendfile&ref_id=<ref>  -> Dateiinhalt (F5, `file_bytes`);
+                                                                   900312 über Umweg /data/…/ (WebAccessChecker-artig),
+                                                                   offline/verbotene Datei -> 302 ref_id=1 (Alert)
 
 Strukturtreue (Live-Befund 08.10., docs/HHN_2FA_SPEC.md §13): Tags, Klassen, ids und
 data-Attribute folgen den echten HHN-Seiten. ALLE Inhalte sind ausgedacht: Titel, Dateinamen,
@@ -66,6 +69,10 @@ class HhnWorld(FakeWorld):
     extra_items: dict[int, list[dict]] = field(default_factory=dict)
     # Startkurs 900101 bekommt einen Ordner in einen endlosen Ordner-Kanal (Crawl-Limit-Test)
     endless_chain: bool = False
+    # F5: ref_id -> normal | forbidden | html | error500 | login_redirect
+    file_modes: dict[int, str] = field(default_factory=dict)
+    # F5: ref_id -> Version (ändert Inhalt; Tests zählen Downloads über requests)
+    file_versions: dict[int, int] = field(default_factory=dict)
     _ids: itertools.count = field(default_factory=lambda: itertools.count(1))
 
     def start(self) -> HhnWorld:  # type: ignore[override]
@@ -106,6 +113,62 @@ class HhnWorld(FakeWorld):
                     out.append(int(v))
         return out
 
+    # ---------------------------------------------------------------- Dateien (F5)
+    @staticmethod
+    def file_item(ref: int) -> dict | None:
+        for blocks in CONTAINERS.values():
+            for _title, _itgr, items in blocks:
+                for it in items:
+                    if it.get("type") == "file" and it.get("ref_id") == ref:
+                        return it
+        return None
+
+    def file_bytes(self, ref: int) -> bytes:
+        it = self.file_item(ref) or {}
+        version = self.file_versions.get(ref, 1)
+        return f"FAKE-FILE ref={ref} v={version} title={it.get('title', '')}\n".encode() * 3
+
+    def downloads(self, since: int = 0) -> list[int]:
+        """ref_ids, deren Inhalt tatsächlich ausgeliefert wurde (sendfile oder /data-Umweg)."""
+        out = []
+        for r in self.requests[since:]:
+            if r.server == "ilias" and r.method == "GET" and getattr(r, "_delivered", None):
+                out.append(r._delivered)
+        return out
+
+    def _send_file(self, handler, rec: RecordedRequest, ref: int) -> None:
+        it = self.file_item(ref) or {}
+        suffix = next((p for p in it.get("props", []) if re.fullmatch(r"[a-z0-9]{1,5}", p)), "bin")
+        name = f"{it.get('title', 'datei')}.{suffix}"
+        data = self.file_bytes(ref)
+        rec._delivered = ref
+        handler.send_response(200)
+        handler.send_header("Content-Type", "application/pdf" if suffix == "pdf" else "application/octet-stream")
+        handler.send_header("Content-Length", str(len(data)))
+        handler.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + urllib.parse.quote(name))
+        handler.end_headers()
+        if handler.command != "HEAD":
+            handler.wfile.write(data)
+
+    def handle_file(self, handler, rec: RecordedRequest, ref: int, valid: bool) -> None:
+        if not valid:
+            self._login_redirect(handler, f"file_{ref}_download")
+            return
+        it = self.file_item(ref)
+        mode = self.file_modes.get(ref, "normal")
+        if it is None or it.get("offline") or mode == "forbidden":
+            handler._redirect(self._repo_url(1))
+        elif mode == "login_redirect":
+            self._login_redirect(handler, f"file_{ref}_download")
+        elif mode == "error500":
+            handler._send(500, "<h1>500 Internal Server Error</h1>")
+        elif mode == "html":
+            handler._send(200, self.page("Info", "<p>Infoseite statt Datei</p>"))
+        elif ref == 900312:
+            handler._redirect(f"{self.ilias_base}/data/hhn/ilFile/{ref}/blatt.pdf?il_wac_token=abc&il_wac_ttl=3")
+        else:
+            self._send_file(handler, rec, ref)
+
     # ---------------------------------------------------------------- Routing
     def _login_redirect(self, handler, target: str = "") -> None:
         handler._redirect(
@@ -132,6 +195,18 @@ class HhnWorld(FakeWorld):
         with self.lock:
             valid = sid in self.valid_sessions
 
+        m = re.fullmatch(r"/data/hhn/ilFile/(\d+)/[^/]+", path)
+        if m:
+            if not valid:
+                self._login_redirect(handler)
+            else:
+                self._send_file(handler, rec, int(m.group(1)))
+            return True
+
+        if path == "/goto.php" and re.fullmatch(r"file_\d+_download", q.get("target", "")):
+            self.handle_file(handler, rec, int(q["target"].split("_")[1]), valid)
+            return True
+
         m = re.fullmatch(r"/go/([a-z]+)/(\d+)", path)
         if m:
             if not valid:
@@ -157,6 +232,9 @@ class HhnWorld(FakeWorld):
         if path != "/ilias.php":
             return False
         base_class = q.get("baseClass", "").lower()
+        if q.get("cmd", "").lower() == "sendfile" and q.get("ref_id", "").isdigit():
+            self.handle_file(handler, rec, int(q["ref_id"]), valid)
+            return True
         if base_class == "ildashboardgui" and q.get("cmd") in (None, "", "jumpToSelectedItems", "jumpToMemberships", "show"):
             if not valid:
                 self._login_redirect(handler)

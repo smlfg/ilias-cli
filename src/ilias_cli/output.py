@@ -286,3 +286,39 @@ def _print_tree(tree: Tree) -> None:
 def print_contents(result: CourseContentsResult) -> None:
     _print_tree(_contents_tree(result))
     out_console.print(f"[dim]{result.timestamp}[/dim]")
+
+
+# ---------------------------------------------------------------- F5: Download
+_STATUS_LABEL = {
+    "downloaded": "[green]geladen[/green]",
+    "skipped": "[dim]aktuell[/dim]",
+    "planned": "[cyan]würde laden[/cyan]",
+    "failed": "[red]Fehler[/red]",
+}
+
+
+def download_line(item) -> str:
+    """Eine Fortschrittszeile (stderr), Servertexte escaped."""
+    label = _STATUS_LABEL.get(item.status, item.status)
+    if item.status == "skipped" and item.error_code == "offline":
+        label = "[dim]offline[/dim]"
+    size = _human_size(item.size)
+    extra = f" [dim]{escape(item.message)}[/dim]" if item.status == "failed" and item.message else ""
+    return f"{label}  {escape(item.path)}" + (f"  [dim]{size}[/dim]" if size else "") + extra
+
+
+def print_download_progress(item) -> None:
+    err_console.print(download_line(item), highlight=False)
+
+
+def print_download(result) -> None:
+    s = {status: result.count(status) for status in ("downloaded", "skipped", "planned", "failed")}
+    parts = []
+    if result.dry_run:
+        parts.append(f"{s['planned']} würden geladen")
+    else:
+        parts.append(f"{s['downloaded']} geladen")
+    parts.append(f"{s['skipped']} übersprungen")
+    if s["failed"]:
+        parts.append(f"[red]{s['failed']} fehlgeschlagen[/red]")
+    out_console.print(", ".join(parts) + f" → {escape(result.target_dir)}")
