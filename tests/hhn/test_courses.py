@@ -89,12 +89,13 @@ def test_courses_not_logged_in_exit2(hh: HhnHarness):
 
 
 def test_courses_session_expired_exit3_hint_no_relogin(logged_in: HhnHarness):
-    """§4.4/A5: abgelaufene Session -> Exit 3, Hinweis auf `ilias login`/`ilias setup`, KEIN Auto-Re-Login."""
+    """§4.4/A5: abgelaufene Session -> Exit 3, Hinweis auf `ilias login`, KEIN Auto-Re-Login."""
     logged_in.world.expire_all_sessions()
     kc_before = len(logged_in.world.requests_to("keycloak"))
     data = err_json(logged_in.run("courses", "--json"), 3, "session_expired")
     text = json.dumps(data, ensure_ascii=False)
-    assert "ilias login" in text or "ilias setup" in text, data
+    assert "ilias login" in text, data
+    assert "setup" not in text.lower(), data
     assert len(logged_in.world.requests_to("keycloak")) == kc_before
 
 

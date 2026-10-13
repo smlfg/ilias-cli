@@ -169,7 +169,7 @@ class Fetcher:
         if not self._cookies:
             raise NotLoggedInError(
                 f"Keine gespeicherte Session für {self.key}.",
-                hint=f"Erst `ilias login --instance {self.key}` (oder `ilias setup --instance {self.key}`) ausführen.",
+                hint=f"Erst `ilias login --instance {self.key}` ausführen.",
             )
         host = urlsplit(self.base_url).hostname or ""
         for name, value in self._cookies.items():
@@ -339,8 +339,8 @@ class Fetcher:
         return SessionExpiredError(
             f"{label}: Session abgelaufen (Weiterleitung/Anmeldeseite).",
             hint=(
-                f"`ilias login --instance {self.key}` oder `ilias setup --instance {self.key}` "
-                "ausführen (kein automatischer Re-Login)."
+                f"`ilias login --instance {self.key}` ausführen "
+                "(kein automatischer Re-Login)."
             ),
         )
 
