@@ -14,11 +14,6 @@ class _EmptyStore:
         return {}
 
 
-class _CookieStore:
-    def load(self):
-        return {"PHPSESSID": "x"}
-
-
 def test_not_logged_in_hint_mentions_login_not_setup():
     config = Config(base_url="https://ilias.example.org", instance="hhn")
     with pytest.raises(NotLoggedInError) as excinfo:
