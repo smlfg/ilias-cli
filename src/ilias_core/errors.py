@@ -5,8 +5,8 @@ Jede Exception bildet auf genau einen dokumentierten Exit-Code ab
 maschinenlesbaren ``code`` für ``--json``. Die CLI fängt ausschließlich
 ``IliasError`` und übersetzt ihn in den Prozess-Exit-Code.
 
-0 OK · 1 Login fehlgeschlagen/sonstiges · 2 nicht eingeloggt · 3 Session abgelaufen ·
-4 Netzwerk-/Serverfehler · 5 Parser-Fehler.
+0 OK · 1 Login fehlgeschlagen/sonstiges/Abbruch (``aborted``) · 2 nicht eingeloggt ·
+3 Session abgelaufen · 4 Netzwerk-/Serverfehler · 5 Parser-Fehler.
 """
 
 from __future__ import annotations
@@ -43,6 +43,22 @@ class IliasError(Exception):
 
     def __repr__(self) -> str:  # pragma: no cover - Diagnose
         return f"{type(self).__name__}({self.message!r})"
+
+
+class AbortedError(IliasError):
+    """Interaktive Eingabe abgebrochen (Ctrl-C, EOF). Exit-Code 1."""
+
+    exit_code = EXIT_AUTH
+    code = "aborted"
+
+    def __init__(
+        self,
+        message: str = "Abgebrochen.",
+        *,
+        hint: str | None = None,
+        candidates: list[dict] | None = None,
+    ) -> None:
+        super().__init__(message, hint=hint, candidates=candidates)
 
 
 class AuthenticationError(IliasError):

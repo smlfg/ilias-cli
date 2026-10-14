@@ -100,6 +100,27 @@ def test_wrong_totp(h: Harness):
     assert s.exit_code == 2, str(s)
 
 
+def test_login_eof_is_abort(h: Harness):
+    """EOF/Ctrl-D am Login-Prompt ist Abbruch (Exit 1), kein „Unerwarteter Fehler“."""
+    r = h.run("login", input="")
+    assert r.exit_code == 1, str(r)
+    assert kc_posts(h) == [], "kein Keycloak-POST bei Abbruch vor Passwort"
+    assert "Unerwarteter Fehler" not in r.stdout + r.stderr
+    assert "Abgebrochen" in r.stderr
+    assert h.session_artifacts() == []
+
+
+def test_login_eof_json_is_abort(h: Harness):
+    """``login --json``: Abbruch liefert ``error.code`` ``aborted``, nicht ``error``."""
+    r = h.run("login", "--json", input="")
+    assert r.exit_code == 1, str(r)
+    data = r.json(strict=False)
+    assert data["ok"] is False
+    assert data["error"]["code"] == "aborted"
+    assert data["message"] == "Abgebrochen."
+    assert "Unerwarteter" not in data["message"]
+
+
 def test_unexpected_html_exit_5(h: Harness):
     """§3: Parser-Fehler (kein Keycloak-Formular) -> Exit 5."""
     h.world.keycloak_auth_mode = "garbage"

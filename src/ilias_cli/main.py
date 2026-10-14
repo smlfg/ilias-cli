@@ -15,7 +15,7 @@ import typer
 
 from ilias_core import debuglog
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
-from ilias_core.errors import IliasError
+from ilias_core.errors import AbortedError, IliasError
 from ilias_core.models import (
     CourseContentsResult,
     CoursesResult,
@@ -116,6 +116,8 @@ def _run(
         raise _fail(command, exc, json_output, service) from None
     except KeyboardInterrupt:  # pragma: no cover
         raise typer.Exit(code=130) from None
+    except typer.Abort:
+        raise _fail(command, AbortedError(), json_output, service) from None
     except Exception as exc:  # noqa: BLE001 - bewusst: nie einen Traceback ausgeben
         raise _fail(
             command, IliasError(f"Unerwarteter Fehler: {type(exc).__name__}"), json_output, service
