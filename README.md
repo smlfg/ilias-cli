@@ -18,7 +18,7 @@ CLI (später MCP-Server) für **ILIAS** (Hochschule Heilbronn, Uni Mannheim) und
 Jedes Profil lässt sich in `~/.config/ilias-cli/config.toml` (bzw.
 `$ILIAS_CLI_CONFIG_DIR/config.toml`) unter `[instances.<key>]` überschreiben oder neu
 anlegen (`lms = "ilias" | "moodle"`, `base_url`, bei ILIAS zusätzlich `client_id`, `auth`).
-`courses`/`ls` auf einer ILIAS-Instanz enden mit einer sauberen „nicht unterstützt"-Meldung.
+`download` ist derzeit nur auf ILIAS-Instanzen verfügbar (Moodle: nicht unterstützt).
 
 ```bash
 ilias login  --instance hhn                 # ILIAS HHN

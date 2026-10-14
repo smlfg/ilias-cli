@@ -36,7 +36,7 @@ from . import output, prompts
 app = typer.Typer(
     help=(
         "ILIAS-/Moodle-CLI: Login, Status, Logout (ILIAS und Moodle), "
-        "Kurse und Kursinhalt (Moodle)."
+        "Kurse und Kursinhalt (ILIAS und Moodle)."
     ),
     no_args_is_help=True,
     add_completion=False,
@@ -227,7 +227,7 @@ def courses(
     instance: str | None = INSTANCE_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
-    """Eigene Kurse auflisten (ID, Kurzname, Name, Semester). Derzeit nur Moodle."""
+    """Eigene Kurse auflisten (ID, Kurzname, Name, Semester). ILIAS und Moodle."""
 
     _, result = _run("courses", json_output, instance, debug, lambda service: service.courses())
     assert isinstance(result, CoursesResult)
@@ -250,7 +250,7 @@ def ls(
     json_output: bool = JSON_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
-    """Inhalt eines Kurses als Baum (Abschnitte, Module, Dateien). Derzeit nur Moodle."""
+    """Inhalt eines Kurses als Baum (Abschnitte, Module, Dateien). ILIAS und Moodle."""
 
     if depth is not None and depth < 1:
         raise typer.BadParameter("--depth muss mindestens 1 sein.")
