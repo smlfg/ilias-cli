@@ -22,6 +22,7 @@ from .errors import (
     ParserError,
     PathNotFoundError,
     PermissionDeniedError,
+    UnsafePathError,
 )
 from .models import (
     ContentNode,
@@ -115,12 +116,16 @@ class Service:
                 f"Keine Datei im Kurs {course.fullname!r} passt auf {selector!r}.",
                 hint=f"`ilias ls {course.id} --instance {self.key}` zeigt Pfade und ref_ids.",
             )
-        course_dir = Path(out_dir).expanduser().resolve() / dl.safe_name(course.fullname)
+        out_root = Path(out_dir).expanduser().resolve()
+        course_dir = out_root / dl.safe_name(course.fullname)
+        dl.confined_path(out_root, course_dir.name, root=out_root)
         manifest = dl.load_manifest(course_dir)
         items: list[DownloadItem] = []
         try:
             for planned in chosen:
-                item = self._download_one(planned, course_dir, manifest, dry_run=dry_run, force=force)
+                item = self._download_one(
+                    planned, course_dir, manifest, dry_run=dry_run, force=force, root=out_root
+                )
                 items.append(item)
                 if progress:
                     progress(item)
@@ -137,21 +142,27 @@ class Service:
             items=items,
         )
 
-    def _download_one(self, planned, course_dir: Path, manifest: dict, *, dry_run: bool, force: bool) -> DownloadItem:
+    def _download_one(
+        self, planned, course_dir: Path, manifest: dict, *, dry_run: bool, force: bool, root: Path
+    ) -> DownloadItem:
         rel = f"{course_dir.name}/{planned.relpath}"
         base = {"ref_id": planned.ref_id, "name": planned.name, "path": rel, "timemodified": planned.timemodified}
         if not planned.visible:
             return DownloadItem(**base, status="skipped", size=planned.size, error_code="offline",
                                 message="In ILIAS offline (nicht freigegeben).")
+        try:
+            dest = dl.confined_path(course_dir, planned.relpath, root=root)
+        except UnsafePathError as exc:
+            return DownloadItem(**base, status="failed", error_code=exc.code, message=exc.message or str(exc))
         if not force and dl.is_current(planned, course_dir, manifest):
-            local_size = (course_dir / planned.relpath).stat().st_size
+            local_size = dest.stat().st_size
             return DownloadItem(**base, status="skipped", size=local_size)
         if dry_run:
             return DownloadItem(**base, status="planned", size=planned.size)
         try:
             got = self.backend.download_file(
                 planned.fileurl,
-                course_dir / planned.relpath,
+                dest,
                 label=f"Datei {planned.name!r}",
                 expected_size=planned.size,
             )

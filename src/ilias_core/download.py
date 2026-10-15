@@ -17,11 +17,18 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from .errors import UnsafePathError
 from .models import FileNode, FolderNode, Module, Section
 
 MANIFEST_NAME = ".ilias-download.json"
 _BAD_CHARS = re.compile(r'[\x00-\x1f\x7f\\:*?"<>|]')
 _MAX_NAME = 180
+#: Unter Windows reservierte Gerätenamen, auch mit Endung (``CON.txt``, ``nul.tar.gz``)
+_WINDOWS_RESERVED = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)}
+)
 
 
 @dataclass(frozen=True)
@@ -46,8 +53,10 @@ def safe_name(name: str) -> str:
     text = _BAD_CHARS.sub("_", text)
     text = re.sub(r"\s+", " ", text).strip(" .")
     if not text:
-        text = "_"
-    return text[:_MAX_NAME]
+        return "_"
+    if text.split(".", 1)[0].strip().upper() in _WINDOWS_RESERVED:
+        text = "_" + text
+    return text[:_MAX_NAME].rstrip(" .") or "_"
 
 
 def file_name(name: str, suffix: str | None) -> str:
@@ -153,6 +162,29 @@ def select(files: list[PlannedFile], selector: str | None) -> list[PlannedFile]:
         ):
             hits.append(planned)
     return hits
+
+
+# ---------------------------------------------------------------- Zielpfade (SEC-16)
+def confined_path(course_dir: Path, relpath: str, *, root: Path) -> Path:
+    """Zielpfad ``course_dir/relpath`` – nur wenn er aufgelöst unter ``root`` liegt.
+
+    ``root`` ist der (schon aufgelöste) Ausgabeordner. Abgelehnt werden absolute Pfade,
+    leere/``.``/``..``-Segmente und alles, was nach ``resolve()`` außerhalb landet
+    (``UnsafePathError``, Exit 1).
+    """
+
+    parts = (relpath or "").split("/")
+    if any(part in ("", ".", "..") or "\\" in part for part in parts):
+        raise UnsafePathError(f"Unsicherer Zielpfad abgelehnt: {relpath!r}.")
+    target = course_dir.joinpath(*parts)
+    resolved_root = Path(root).resolve()
+    resolved = target.resolve()
+    if resolved == resolved_root or not resolved.is_relative_to(resolved_root):
+        raise UnsafePathError(
+            f"Zielpfad liegt außerhalb des Ausgabeordners, abgelehnt: {relpath!r}.",
+            hint="Ausgabeordner prüfen (`--out`).",
+        )
+    return target
 
 
 # ---------------------------------------------------------------- Manifest

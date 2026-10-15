@@ -173,3 +173,13 @@ class SizeLimitError(IliasError):
 
     exit_code = EXIT_PARSE
     code = "size_limit"
+
+
+class UnsafePathError(IliasError):
+    """Zielpfad liegt außerhalb des Ausgabeordners oder führt über einen Symlink (SEC-16). Exit 1.
+
+    ``download`` meldet die Datei als ``failed`` und lädt den Rest weiter.
+    """
+
+    exit_code = EXIT_AUTH
+    code = "unsafe_path"
