@@ -156,3 +156,13 @@ class PathNotFoundError(IliasError):
 
     exit_code = EXIT_AUTH
     code = "path_not_found"
+
+
+class ForeignHostError(ParserError):
+    """Ein Link aus ILIAS zeigt auf einen anderen Host als die Instanz. Exit 5, kein Request.
+
+    Unterklasse von ``ParserError``: ``download`` meldet die Datei als ``failed`` und lädt
+    den Rest weiter.
+    """
+
+    code = "foreign_host"

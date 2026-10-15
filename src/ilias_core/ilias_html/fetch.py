@@ -40,6 +40,7 @@ from ..auth.parsers import is_ilias_login_page
 from ..auth.verify import ilias_cookies
 from ..config import Config
 from ..errors import (
+    ForeignHostError,
     CrawlLimitError,
     NetworkError,
     NotLoggedInError,
@@ -96,6 +97,15 @@ def is_auth_redirect(location_url: str, base_url: str) -> bool:
     if not host:  # relative Angabe ohne Host: bleibt auf der Instanz
         return False
     return host != base_host or port != base_port
+
+
+def same_instance_origin(url: str, base_url: str) -> bool:
+    """True, wenn ``url`` (absolut oder relativ) auf Schema, Host und Port der Instanz zeigt."""
+
+    scheme, host, port = _origin(url)
+    if not host:  # relativ: bleibt auf der Instanz
+        return True
+    return (scheme, host, port) == _origin(base_url)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -201,7 +211,7 @@ class Fetcher:
 
     # -- Anfrage --------------------------------------------------------
     def get(self, url: str, *, label: str = "Seite", expect_ref: int | None = None) -> IliasPage:
-        current = urljoin(self.base_url + "/", url)
+        current = self._first_url(url, label)
         for _ in range(MAX_REDIRECTS + 1):
             response = self._send(current, label)
             status = response.status_code
@@ -239,7 +249,7 @@ class Fetcher:
         from pathlib import Path
 
         dest = Path(dest)
-        current = urljoin(self.base_url + "/", url)
+        current = self._first_url(url, label)
         for _ in range(MAX_REDIRECTS + 1):
             self._count(label)
             try:
@@ -295,6 +305,20 @@ class Fetcher:
             f"{label}: zu viele Weiterleitungen ({safe_url(url)}).",
             hint=f"ILIAS-Adresse prüfen oder `ilias status --instance {self.key}`.",
         )
+
+    def _first_url(self, url: str, label: str) -> str:
+        """Erste URL einer Anfrage: absolute Links aus ILIAS nur auf den Instanz-Host (SEC-18).
+
+        Ein fremder Host (anderer Host, Port oder Schema) bricht **vor** jedem Request ab.
+        """
+
+        current = urljoin(self.base_url + "/", url)
+        if not same_instance_origin(current, self.base_url):
+            raise ForeignHostError(
+                f"{label}: Link zeigt auf einen fremden Host ({safe_url(current)}); nicht abgerufen.",
+                hint=f"Nur Inhalte von {self.base_url} werden geladen.",
+            )
+        return current
 
     def _count(self, label: str) -> None:
         if self.request_count >= self.max_requests:
