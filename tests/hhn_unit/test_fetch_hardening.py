@@ -67,6 +67,56 @@ def test_get_same_host_still_works(ilias, monkeypatch):
     assert "Abmelden" in page.html and len(ilias.requests) == 1
 
 
+
+_NON_HTTP = [
+    "javascript:alert(1)",
+    "JAVASCRIPT:alert(1)",
+    "JavaScript:void(0)",
+    "data:text/html,<b>x</b>",
+    "DATA:text/plain,x",
+    "file:///etc/passwd",
+    "FILE:///etc/passwd",
+    "mailto:someone@example.org",
+    "MAILTO:someone@example.org",
+    "ftp://ilias.example.org/x",
+]
+
+
+@pytest.mark.parametrize("url", _NON_HTTP)
+def test_same_instance_origin_rejects_non_http_schemes(url):
+    assert not same_instance_origin(url, "https://ilias.example.org")
+
+
+def test_same_instance_origin_relative_and_same_host_ok():
+    base = "https://ilias.example.org"
+    assert same_instance_origin("ilias.php?ref_id=1", base)
+    assert same_instance_origin("/goto.php?target=crs_1", base)
+    assert same_instance_origin("https://ilias.example.org/ilias.php?ref_id=1", base)
+    assert same_instance_origin("HTTPS://ilias.example.org/x", base)
+
+
+@pytest.mark.parametrize("url", _NON_HTTP)
+def test_get_non_http_scheme_foreign_host_no_request(ilias, monkeypatch, url):
+    fetcher = _fetcher(ilias, monkeypatch)
+    with pytest.raises(ForeignHostError) as excinfo:
+        fetcher.get(url)
+    assert excinfo.value.exit_code == 5
+    assert ilias.requests == [] and fetcher.request_count == 0
+
+
+@pytest.mark.parametrize("url", _NON_HTTP)
+def test_download_non_http_scheme_foreign_host_no_request(ilias, monkeypatch, tmp_path, url):
+    fetcher = _fetcher(ilias, monkeypatch)
+    with pytest.raises(ForeignHostError):
+        fetcher.download(url, tmp_path / "x.pdf")
+    assert ilias.requests == [] and list(tmp_path.iterdir()) == []
+
+
+def test_get_relative_link_still_works(ilias, monkeypatch):
+    ilias.routes["/ilias.php?baseClass=ilDashboardGUI"] = (200, {"Content-Type": "text/html"}, LOGGED_IN_HTML.encode())
+    page = _fetcher(ilias, monkeypatch).get("ilias.php?baseClass=ilDashboardGUI")
+    assert "Abmelden" in page.html and len(ilias.requests) == 1
+
 # ---------------------------------------------------------------- Item 1: Byte-Obergrenzen (SEC-25)
 from ilias_core.errors import SizeLimitError  # noqa: E402
 from ilias_core.ilias_html.fetch import download_limit  # noqa: E402

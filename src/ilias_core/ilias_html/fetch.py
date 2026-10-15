@@ -79,6 +79,9 @@ _DEFAULT_PORTS = {"http": 80, "https": 443}
 COOKIE_ALLOWLIST = frozenset({"PHPSESSID", "ilClientId"})
 
 
+_ALLOWED_SCHEMES = frozenset({"", "http", "https"})
+
+
 def _origin(url: str) -> tuple[str, str, int | None]:
     parts = urlsplit(url)
     scheme = (parts.scheme or "").lower()
@@ -109,11 +112,17 @@ def is_auth_redirect(location_url: str, base_url: str) -> bool:
 
 
 def same_instance_origin(url: str, base_url: str) -> bool:
-    """True, wenn ``url`` (absolut oder relativ) auf Schema, Host und Port der Instanz zeigt."""
+    """True, wenn ``url`` (absolut oder relativ) auf Schema, Host und Port der Instanz zeigt.
+
+    Nur ``http``/``https`` oder ein leeres Schema (echt relativ) sind erlaubt. ``javascript:``,
+    ``data:``, ``file:``, ``mailto:`` usw. haben keinen Host, sind aber **nicht** relativ.
+    """
 
     scheme, host, port = _origin(url)
+    if scheme not in _ALLOWED_SCHEMES:
+        return False
     if not host:  # relativ: bleibt auf der Instanz
-        return True
+        return scheme == ""
     return (scheme, host, port) == _origin(base_url)
 
 
