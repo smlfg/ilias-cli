@@ -107,7 +107,7 @@ ilias setup --list [--filter TEXT] [--json]
 | Lage | Erkennung | Exit / `error.code` |
 |---|---|---|
 | Keine Session gespeichert | lokal | 2 / `not_logged_in` |
-| Session abgelaufen | Redirect auf `login.php` (`cmd=force_login`) **auf jeder Seite**, auch mitten im `ls`-Crawl; oder 200 mit Login-Formular statt Inhalt | 3 / `session_expired`, Hinweis „`ilias login` oder `ilias setup` ausführen“. **Kein** Auto-Re-Login, keine Teilausgabe als Erfolg. |
+| Session abgelaufen | Redirect auf `login.php` (`cmd=force_login`) **auf jeder Seite**, auch mitten im `ls`-Crawl; oder 200 mit Login-Formular statt Inhalt | 3 / `session_expired`, Hinweis „`ilias login` ausführen“ (bis `setup` im CLI existiert). **Kein** Auto-Re-Login, keine Teilausgabe als Erfolg. |
 
 ## 5. `ilias courses` für ILIAS
 

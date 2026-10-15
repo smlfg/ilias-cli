@@ -33,6 +33,21 @@ def test_help_commands_work():
         assert result.exit_code == 0, result.output
 
 
+def test_help_courses_ls_not_moodle_only():
+    """HHN-ILIAS implementiert courses/ls; Hilfe darf nicht „nur Moodle“ behaupten."""
+    root = runner.invoke(app, ["--help"])
+    assert root.exit_code == 0, root.output
+    assert "nur Moodle" not in root.output.lower()
+    assert "ilias" in root.output.lower()
+
+    for cmd in ("courses", "ls"):
+        result = runner.invoke(app, [cmd, "--help"])
+        assert result.exit_code == 0, result.output
+        assert "Derzeit nur Moodle" not in result.output
+        assert "Moodle" in result.output
+        assert "ILIAS" in result.output
+
+
 def test_status_logged_in_json(config_dir, memory_keyring):
     _save_session(config_dir)
     with respx.mock(assert_all_called=False) as router:

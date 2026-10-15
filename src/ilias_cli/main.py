@@ -22,6 +22,7 @@ from ilias_core.models import (
     CourseContentsResult,
     CoursesResult,
     Credentials,
+    DownloadResult,
     ErrorResult,
     LoginResult,
     LogoutResult,
@@ -38,7 +39,7 @@ from . import output, prompts
 app = typer.Typer(
     help=(
         "ILIAS-/Moodle-CLI: Login, Status, Logout (ILIAS und Moodle), "
-        "Kurse und Kursinhalt (Moodle)."
+        "Kurse und Kursinhalt (ILIAS und Moodle)."
     ),
     no_args_is_help=True,
     add_completion=False,
@@ -155,7 +156,9 @@ def _run(
         raise _fail(command, exc, json_output, service) from None
     except KeyboardInterrupt:  # pragma: no cover
         raise _fail(command, AbortedError(), json_output, service) from None
-    except Exception as exc:  # noqa: BLE001
+    except typer.Abort:
+        raise _fail(command, AbortedError(), json_output, service) from None
+    except Exception as exc:  # noqa: BLE001 - bewusst: nie einen Traceback ausgeben
         raise _fail(
             command, IliasError(f"Unerwarteter Fehler: {type(exc).__name__}"), json_output, service
         ) from None
@@ -387,7 +390,7 @@ def courses(
     instance: str | None = INSTANCE_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
-    """Eigene Kurse auflisten (ID, Kurzname, Name, Semester). Derzeit nur Moodle."""
+    """Eigene Kurse auflisten (ID, Kurzname, Name, Semester). ILIAS und Moodle."""
 
     _, result = _run("courses", json_output, instance, debug, lambda service: service.courses())
     assert isinstance(result, CoursesResult)
@@ -410,7 +413,7 @@ def ls(
     json_output: bool = JSON_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
-    """Inhalt eines Kurses als Baum (Abschnitte, Module, Dateien). Derzeit nur Moodle."""
+    """Inhalt eines Kurses als Baum (Abschnitte, Module, Dateien). ILIAS und Moodle."""
 
     if depth is not None and depth < 1:
         raise typer.BadParameter("--depth muss mindestens 1 sein.")
@@ -420,6 +423,45 @@ def ls(
         output.print_json(result.to_json_dict())
     else:
         output.print_contents(result)
+
+
+@app.command()
+def download(
+    kurs: str = typer.Argument(..., help="Kurs-ID, Kursnummer oder Teilstring des Namens (wie bei `ls`)."),
+    pfad: str | None = typer.Argument(
+        None,
+        help="Optional: ref_id einer Datei oder Pfad im Kurs, z. B. 'Übungsblätter' oder 'Übungsblätter/Blatt 2'.",
+    ),
+    out: str = typer.Option(".", "--out", "-o", help="Zielordner; darin entsteht ein Ordner pro Kurs."),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Nur anzeigen, was geladen würde."),
+    force: bool = typer.Option(False, "--force", help="Auch unveränderte Dateien neu laden."),
+    instance: str | None = INSTANCE_OPTION,
+    json_output: bool = JSON_OPTION,
+    debug: bool = DEBUG_OPTION,
+) -> None:
+    """Dateien eines Kurses herunterladen (F5), nur neue/geänderte. Derzeit nur ILIAS.
+
+    Exit 0: alles geladen oder aktuell. Exit 1: mindestens eine Datei verweigert
+    (Liste in der Ausgabe, der Rest wurde trotzdem geladen).
+    """
+
+    progress = None if json_output else output.print_download_progress
+    _, result = _run(
+        "download",
+        json_output,
+        instance,
+        debug,
+        lambda service: service.download(
+            kurs, pfad, out_dir=out, dry_run=dry_run, force=force, progress=progress
+        ),
+    )
+    assert isinstance(result, DownloadResult)
+    if json_output:
+        output.print_json(result.to_json_dict())
+    else:
+        output.print_download(result)
+    if not result.ok:
+        raise typer.Exit(code=1)
 
 
 def main() -> None:
