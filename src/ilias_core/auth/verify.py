@@ -11,7 +11,7 @@ Ein Login gilt erst als erfolgreich, wenn
 from __future__ import annotations
 
 from enum import Enum
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
@@ -95,8 +95,24 @@ def session_changed(before: dict[str, str], after: dict[str, str]) -> bool:
 def check_dashboard(client: httpx.Client, base_url: str) -> DashboardState:
     """Ruft das Dashboard ab und klassifiziert die Antwort."""
 
+    from ..ilias_html.fetch import MAX_REDIRECTS, is_auth_redirect  # lazy: fetch importiert verify
+
+    url = dashboard_url(base_url)
     try:
-        response = client.get(dashboard_url(base_url))
+        response = client.get(url)
+        # Folgt der Client nicht selbst (Status/#51), nur Weiterleitungen auf dem ILIAS-Host
+        # folgen; Login-/IdP-Fluss oder fremder Host -> LOGIN ohne weiteren Request.
+        for _ in range(MAX_REDIRECTS):
+            if not response.is_redirect:
+                break
+            target = urljoin(str(response.url), response.headers.get("location") or "")
+            if is_auth_redirect(target, base_url):
+                debuglog.debug("Prüfung Dashboard: Weiterleitung in den Login-Fluss, nicht gefolgt")
+                return DashboardState.LOGIN
+            response = client.get(target)
+        else:
+            if response.is_redirect:
+                raise NetworkError("Zu viele Weiterleitungen bei der Session-Prüfung.")
     except httpx.HTTPError as exc:
         raise NetworkError("Netzwerkfehler bei der Session-Prüfung.") from exc
 
