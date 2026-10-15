@@ -147,3 +147,61 @@ def test_no_secrets_in_output(logged_in: HhnHarness):
     assert "geladen" in r.stdout
     manifest = (Path(json.loads(h.run("download", COURSE, "-o", "dl", "--json").stdout)["target_dir"]) / ".ilias-download.json").read_text()
     assert "il_wac_token" not in manifest and "PHPSESSID" not in manifest
+
+
+# ---------------------------------------------------------------- SEC-16: keine Symlinks folgen
+def _outside(h: HhnHarness) -> Path:
+    outside = h.cwd / "outside"
+    outside.mkdir(exist_ok=True)
+    (outside / "victim.txt").write_text("unverändert", encoding="utf-8")
+    return outside
+
+
+def _assert_outside_untouched(outside: Path) -> None:
+    assert sorted(p.name for p in outside.iterdir()) == ["victim.txt"]
+    assert (outside / "victim.txt").read_text(encoding="utf-8") == "unverändert"
+
+
+def test_symlinked_course_dir_is_refused(logged_in: HhnHarness):
+    h = logged_in
+    root = _course_dir(h, ok_json(h.run("download", COURSE, "-o", "dl", "--json")))
+    import shutil
+
+    shutil.rmtree(root)
+    outside = _outside(h)
+    root.symlink_to(outside, target_is_directory=True)
+    err_json(h.run("download", COURSE, "-o", "dl", "--json"), 1, "unsafe_path")
+    _assert_outside_untouched(outside)
+
+
+def test_symlinked_subfolder_files_fail_rest_continues(logged_in: HhnHarness):
+    h = logged_in
+    root = _course_dir(h, ok_json(h.run("download", COURSE, "-o", "dl", "--json")))
+    import shutil
+
+    shutil.rmtree(root / "Übungsblätter")
+    outside = _outside(h)
+    (root / "Übungsblätter").symlink_to(outside, target_is_directory=True)
+    r = h.run("download", COURSE, "-o", "dl", "--json", "--force")
+    assert r.exit_code == 1, str(r)
+    data = json.loads(r.stdout)
+    failed = _items(data, "failed")
+    assert failed and all(i["error_code"] == "unsafe_path" for i in failed)
+    assert all(i["path"].split("/")[1] == "Übungsblätter" for i in failed)
+    assert _items(data, "downloaded")
+    _assert_outside_untouched(outside)
+
+
+def test_symlinked_target_file_is_not_overwritten(logged_in: HhnHarness):
+    h = logged_in
+    root = _course_dir(h, ok_json(h.run("download", COURSE, "-o", "dl", "--json")))
+    outside = _outside(h)
+    target = root / "Skript Kapitel 1.pdf"
+    target.unlink()
+    target.symlink_to(outside / "victim.txt")
+    r = h.run("download", COURSE, "-o", "dl", "--json", "--force")
+    assert r.exit_code == 1, str(r)
+    failed = _items(json.loads(r.stdout), "failed")
+    assert [i["error_code"] for i in failed] == ["unsafe_path"]
+    assert target.is_symlink()
+    _assert_outside_untouched(outside)

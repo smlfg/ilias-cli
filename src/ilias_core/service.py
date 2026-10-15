@@ -166,7 +166,7 @@ class Service:
                 label=f"Datei {planned.name!r}",
                 expected_size=planned.size,
             )
-        except (PermissionDeniedError, ParserError) as exc:
+        except (PermissionDeniedError, ParserError, UnsafePathError) as exc:
             return DownloadItem(**base, status="failed", error_code=exc.code, message=exc.message or str(exc))
         manifest[dl.manifest_key(planned)] = {
             "relpath": planned.relpath,

@@ -149,3 +149,81 @@ def test_download_within_listed_size_ok(ilias, monkeypatch, tmp_path):
     path = _file_route(ilias, 5000)
     got = _fetcher(ilias, monkeypatch).download(path, tmp_path / "x.pdf", expected_size=4000)
     assert got.size == 5000 and (tmp_path / "x.pdf").read_bytes() == b"A" * 5000
+
+
+# ---------------------------------------------------------------- Item 3: keine Symlinks (SEC-16)
+from ilias_core import download as dl  # noqa: E402
+from ilias_core.errors import UnsafePathError  # noqa: E402
+
+
+def _victim(tmp_path):
+    victim = tmp_path / "victim.txt"
+    victim.write_text("unverändert", encoding="utf-8")
+    return victim
+
+
+def test_download_refuses_symlinked_part(ilias, monkeypatch, tmp_path):
+    victim = _victim(tmp_path)
+    path = _file_route(ilias, 100)
+    dest = tmp_path / "kurs" / "x.pdf"
+    dest.parent.mkdir()
+    dest.with_name("x.pdf.part").symlink_to(victim)
+    with pytest.raises(UnsafePathError) as excinfo:
+        _fetcher(ilias, monkeypatch).download(path, dest)
+    assert excinfo.value.exit_code == 1
+    assert victim.read_text(encoding="utf-8") == "unverändert" and not dest.exists()
+
+
+def test_download_refuses_symlinked_dest(ilias, monkeypatch, tmp_path):
+    victim = _victim(tmp_path)
+    path = _file_route(ilias, 100)
+    dest = tmp_path / "x.pdf"
+    dest.symlink_to(victim)
+    with pytest.raises(UnsafePathError):
+        _fetcher(ilias, monkeypatch).download(path, dest)
+    assert victim.read_text(encoding="utf-8") == "unverändert" and dest.is_symlink()
+
+
+def test_download_replaces_stale_regular_part(ilias, monkeypatch, tmp_path):
+    path = _file_route(ilias, 100)
+    dest = tmp_path / "x.pdf"
+    dest.with_name("x.pdf.part").write_bytes(b"alt")
+    _fetcher(ilias, monkeypatch).download(path, dest)
+    assert dest.read_bytes() == b"A" * 100 and not dest.with_name("x.pdf.part").exists()
+
+
+def test_save_manifest_refuses_symlinked_part(tmp_path):
+    victim = _victim(tmp_path)
+    course = tmp_path / "kurs"
+    course.mkdir()
+    (course / (dl.MANIFEST_NAME + ".part")).symlink_to(victim)
+    with pytest.raises(UnsafePathError):
+        dl.save_manifest(course, {"1": {"relpath": "a.pdf"}})
+    assert victim.read_text(encoding="utf-8") == "unverändert"
+
+
+def test_manifest_symlink_ignored_and_refused(tmp_path):
+    victim = _victim(tmp_path)
+    course = tmp_path / "kurs"
+    course.mkdir()
+    (course / dl.MANIFEST_NAME).symlink_to(victim)
+    assert dl.load_manifest(course) == {}
+    with pytest.raises(UnsafePathError):
+        dl.save_manifest(course, {})
+    assert victim.read_text(encoding="utf-8") == "unverändert"
+
+
+def test_save_manifest_normal(tmp_path):
+    course = tmp_path / "kurs"
+    dl.save_manifest(course, {"1": {"relpath": "a.pdf"}})
+    assert dl.load_manifest(course) == {"1": {"relpath": "a.pdf"}}
+    assert not (course / (dl.MANIFEST_NAME + ".part")).exists()
+
+
+def test_refuse_symlinks_in_course_chain(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    (tmp_path / "kurs").symlink_to(real, target_is_directory=True)
+    with pytest.raises(UnsafePathError):
+        dl.refuse_symlinks(tmp_path / "kurs", tmp_path / "kurs" / "a" / "b.pdf")
+    dl.refuse_symlinks(real, real / "fehlt" / "b.pdf")  # nicht vorhandene Segmente sind ok

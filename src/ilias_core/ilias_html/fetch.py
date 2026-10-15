@@ -48,6 +48,7 @@ from ..errors import (
     PermissionDeniedError,
     SizeLimitError,
     SessionExpiredError,
+    UnsafePathError,
 )
 from ..http import DEFAULT_TIMEOUT, user_agent
 from ..session import SessionStore
@@ -319,11 +320,16 @@ class Fetcher:
                     declared = response.headers.get("content-length")
                     if declared and declared.isdigit() and int(declared) > limit:
                         raise self._too_large(label, limit, "ILIAS_CLI_MAX_DOWNLOAD_BYTES")
+                    from ..download import is_symlink, open_exclusive
+
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     part = dest.with_name(dest.name + ".part")
+                    if is_symlink(dest.parent) or is_symlink(dest):
+                        raise UnsafePathError(f"{label}: Symlink im Zielpfad, abgelehnt ({dest.name!r}).")
+                    handle = open_exclusive(part)
                     size = 0
                     try:
-                        with open(part, "wb") as handle:
+                        with handle:
                             for chunk in response.iter_bytes():
                                 size += len(chunk)
                                 if size > limit:

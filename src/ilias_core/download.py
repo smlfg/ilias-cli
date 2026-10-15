@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -177,6 +178,7 @@ def confined_path(course_dir: Path, relpath: str, *, root: Path) -> Path:
     if any(part in ("", ".", "..") or "\\" in part for part in parts):
         raise UnsafePathError(f"Unsicherer Zielpfad abgelehnt: {relpath!r}.")
     target = course_dir.joinpath(*parts)
+    refuse_symlinks(course_dir, target)
     resolved_root = Path(root).resolve()
     resolved = target.resolve()
     if resolved == resolved_root or not resolved.is_relative_to(resolved_root):
@@ -187,8 +189,62 @@ def confined_path(course_dir: Path, relpath: str, *, root: Path) -> Path:
     return target
 
 
+def is_symlink(path: Path) -> bool:
+    """``lstat``-Prüfung ohne dem Link zu folgen; fehlender Pfad -> False."""
+
+    try:
+        return stat.S_ISLNK(os.lstat(path).st_mode)
+    except FileNotFoundError:
+        return False
+
+
+def refuse_symlinks(base: Path, target: Path) -> None:
+    """Kein Symlink in ``base`` und allen vorhandenen Segmenten bis ``target`` (SEC-16).
+
+    Downloads folgen nie Symlinks: Kursordner, Unterordner und Zieldatei werden per
+    ``lstat`` geprüft; ein Treffer -> ``UnsafePathError`` (Exit 1).
+    """
+
+    rel_parts = target.relative_to(base).parts if target != base else ()
+    current = base
+    for part in (None, *rel_parts):
+        if part is not None:
+            current = current / part
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            return
+        if stat.S_ISLNK(mode):
+            raise UnsafePathError(
+                f"Symlink im Zielpfad, abgelehnt: {current.name!r}.",
+                hint="Downloads folgen keinen Symlinks; Link entfernen oder anderen `--out` wählen.",
+            )
+
+
+def open_exclusive(path: Path):
+    """Neue Datei binär zum Schreiben öffnen: nie über einen Symlink, nie eine fremde Datei.
+
+    Eine liegengebliebene reguläre ``.part``-Datei wird vorher entfernt; ist ``path`` ein
+    Symlink -> ``UnsafePathError``. Danach ``O_CREAT|O_EXCL|O_NOFOLLOW``.
+    """
+
+    if is_symlink(path):
+        raise UnsafePathError(f"Symlink als Zwischendatei, abgelehnt: {path.name!r}.")
+    path.unlink(missing_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    try:
+        fd = os.open(path, flags, 0o644)
+    except FileExistsError:
+        raise UnsafePathError(f"Zwischendatei entstand parallel, abgelehnt: {path.name!r}.") from None
+    except OSError as exc:  # ELOOP: Symlink zwischen Prüfung und open
+        raise UnsafePathError(f"Zwischendatei nicht sicher anlegbar: {path.name!r} ({exc.strerror}).") from None
+    return os.fdopen(fd, "wb")
+
+
 # ---------------------------------------------------------------- Manifest
 def load_manifest(course_dir: Path) -> dict[str, dict]:
+    if is_symlink(course_dir) or is_symlink(course_dir / MANIFEST_NAME):
+        return {}
     try:
         data = json.loads((course_dir / MANIFEST_NAME).read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -200,8 +256,11 @@ def load_manifest(course_dir: Path) -> dict[str, dict]:
 def save_manifest(course_dir: Path, files: dict[str, dict]) -> None:
     course_dir.mkdir(parents=True, exist_ok=True)
     target = course_dir / MANIFEST_NAME
+    refuse_symlinks(course_dir, target)
     tmp = target.with_name(target.name + ".part")
-    tmp.write_text(json.dumps({"version": 1, "files": files}, ensure_ascii=False, indent=1), encoding="utf-8")
+    payload = json.dumps({"version": 1, "files": files}, ensure_ascii=False, indent=1).encode("utf-8")
+    with open_exclusive(tmp) as handle:
+        handle.write(payload)
     os.replace(tmp, target)
 
 
