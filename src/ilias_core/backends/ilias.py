@@ -107,9 +107,9 @@ class IliasBackend(Backend):
         return self._load_sections(fetcher, course_id, level=2, depth=depth, visited={course_id})
 
     # -- F5: Download ----------------------------------------------------
-    def download_file(self, fileurl: str, dest, *, label: str = "Datei"):
+    def download_file(self, fileurl: str, dest, *, label: str = "Datei", expected_size: int | None = None):
         """Eine Datei über ihren Titel-Link (``cmd=sendfile``) laden; Session wie bei ``ls``."""
-        return self._get_fetcher().download(fileurl, dest, label=label)
+        return self._get_fetcher().download(fileurl, dest, label=label, expected_size=expected_size)
 
     # -- Aufbau ----------------------------------------------------------
     def _get_fetcher(self) -> Fetcher:

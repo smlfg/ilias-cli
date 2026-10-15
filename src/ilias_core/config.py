@@ -70,6 +70,10 @@ class InstanceProfile:
     username_label: str = "Benutzername"
     lms: str = BACKEND_ILIAS
     label: str = ""
+    #: Anzeigename für die `setup`-Auswahlliste (Spec §3.2).
+    display_name: str = ""
+    #: Stadt für die Filterfunktion `setup.filter_instances`.
+    city: str = ""
 
 
 BUILTIN_INSTANCES: dict[str, InstanceProfile] = {
@@ -78,6 +82,8 @@ BUILTIN_INSTANCES: dict[str, InstanceProfile] = {
         base_url="https://ilias.hs-heilbronn.de",
         client_id="iliashhn",
         auth=AUTH_OIDC_KEYCLOAK,
+        display_name="Hochschule Heilbronn",
+        city="Heilbronn",
     ),
     "uni-mannheim": InstanceProfile(
         name="uni-mannheim",
@@ -85,6 +91,8 @@ BUILTIN_INSTANCES: dict[str, InstanceProfile] = {
         client_id="ILIAS",
         auth=AUTH_SAML_SHIBBOLETH,
         username_label="Uni-ID (Kennung)",
+        display_name="Universität Mannheim",
+        city="Mannheim",
     ),
     "hs-mannheim": InstanceProfile(
         name="hs-mannheim",
@@ -93,6 +101,8 @@ BUILTIN_INSTANCES: dict[str, InstanceProfile] = {
         auth=AUTH_MOODLE_TOKEN,
         lms=BACKEND_MOODLE,
         label="Moodle Hochschule Mannheim (Lernplattform TH-MA)",
+        display_name="Hochschule Mannheim",
+        city="Mannheim",
     ),
 }
 

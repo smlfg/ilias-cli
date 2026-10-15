@@ -19,6 +19,7 @@ from .config import (
     load_instance,
 )
 from .errors import (
+    AbortedError,
     AuthenticationError,
     BrowserUnavailableError,
     ConfigError,
@@ -49,11 +50,19 @@ from .models import (
     MoodleStatusResult,
     Section,
     SessionStatus,
+    SetupResult,
     SiteInfo,
     UrlNode,
 )
 from .secrets import Secret
 from .service import Service, open_service, resolve_course, trim_sections
+from .setup import (
+    InstanceInfo,
+    filter_instances,
+    list_instances,
+    merge_config,
+    stored_username,
+)
 from .timeutil import semester_from_timestamp, timestamp_to_iso
 from .tokens import StoredSession, TokenStore
 from .version import __version__
@@ -62,6 +71,7 @@ __all__ = [
     "BUILTIN_INSTANCES",
     "DEFAULT_BASE_URL",
     "DEFAULT_CLIENT_ID",
+    "AbortedError",
     "AuthenticationError",
     "BrowserUnavailableError",
     "Config",
@@ -79,6 +89,7 @@ __all__ = [
     "IliasClient",
     "IliasError",
     "Instance",
+    "InstanceInfo",
     "InstanceProfile",
     "ItemNode",
     "LoginResult",
@@ -96,6 +107,7 @@ __all__ = [
     "Service",
     "SessionExpiredError",
     "SessionStatus",
+    "SetupResult",
     "SiteInfo",
     "StoredSession",
     "TokenStore",
@@ -103,11 +115,15 @@ __all__ = [
     "__version__",
     "config_dir",
     "config_path",
+    "filter_instances",
+    "list_instances",
     "load_config",
     "load_instance",
+    "merge_config",
     "open_service",
     "resolve_course",
     "semester_from_timestamp",
+    "stored_username",
     "timestamp_to_iso",
     "trim_sections",
 ]

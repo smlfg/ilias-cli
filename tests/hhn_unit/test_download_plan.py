@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import unicodedata
 
+import pytest
+
 from ilias_core import download as dl
+from ilias_core.errors import UnsafePathError
 from ilias_core.ilias_html.fetch import _disposition_filename
 from ilias_core.models import FileNode, FolderNode, ItemNode, Module, Section
 
@@ -72,3 +75,62 @@ def test_disposition_filename():
     assert _disposition_filename("attachment; filename*=UTF-8''L%C3%B6sung%201.pdf") == "Lösung 1.pdf"
     assert _disposition_filename('inline; filename="a b.pdf"') == "a b.pdf"
     assert _disposition_filename(None) is None
+
+
+# ---------------------------------------------------------------- SEC-16: Namen und Zielpfade
+@pytest.mark.parametrize(
+    "raw",
+    ["CON", "con", "Prn.txt", "AUX.tar.gz", "nul", "COM1", "com9.pdf", "LPT1", "lpt5.doc", "CON .txt"],
+)
+def test_safe_name_windows_reserved(raw):
+    got = dl.safe_name(raw)
+    assert got.startswith("_"), got
+    assert got.split(".", 1)[0].strip().upper() not in dl._WINDOWS_RESERVED
+
+
+@pytest.mark.parametrize("raw", ["CONSOLE", "Auxiliar.pdf", "COM10", "LPT0", "NULL", "Contoso"])
+def test_safe_name_not_reserved_unchanged(raw):
+    assert dl.safe_name(raw) == raw
+
+
+@pytest.mark.parametrize("raw", ["", ".", "..", "...", " . . ", "\x00", None])
+def test_safe_name_empty_or_dots(raw):
+    assert dl.safe_name(raw) == "_" or dl.safe_name(raw).strip("_") == ""
+    assert dl.safe_name(raw) not in ("", ".", "..")
+
+
+def test_safe_name_truncation_does_not_end_in_dot():
+    got = dl.safe_name("a" * 179 + ". rest")
+    assert len(got) <= 180 and not got.endswith((".", " "))
+
+
+def test_folder_named_dotdot_stays_inside():
+    fold = Module(id=2, ref_id=2, name="..", modname="fold", children=[
+        FileNode(name="x", path="/../", fileurl="/f", suffix="pdf", ref_id=3),
+    ])
+    sections = [Section(id=1, number=0, name="Inhalt", modules=[fold])]
+    planned = dl.plan_files(sections)
+    assert [p.relpath for p in planned] == ["_/x.pdf"]
+
+
+def test_confined_path_ok(tmp_path):
+    course = tmp_path / "Kurs"
+    assert dl.confined_path(course, "a/b.pdf", root=tmp_path) == course / "a" / "b.pdf"
+
+
+@pytest.mark.parametrize("rel", ["../evil.pdf", "a/../../evil.pdf", "/etc/passwd", "", "./x", "a//b"])
+def test_confined_path_rejects_traversal(tmp_path, rel):
+    with pytest.raises(UnsafePathError) as excinfo:
+        dl.confined_path(tmp_path / "Kurs", rel, root=tmp_path)
+    assert excinfo.value.exit_code == 1 and excinfo.value.code == "unsafe_path"
+
+
+def test_confined_path_rejects_resolved_escape(tmp_path):
+    """Ein Symlink im Pfad, der nach außen zeigt, fällt spätestens bei resolve() auf."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    root = tmp_path / "out"
+    (root / "Kurs").mkdir(parents=True)
+    (root / "Kurs" / "sub").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(UnsafePathError):
+        dl.confined_path(root / "Kurs", "sub/x.pdf", root=root)

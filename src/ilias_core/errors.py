@@ -46,7 +46,10 @@ class IliasError(Exception):
 
 
 class AbortedError(IliasError):
-    """Interaktive Eingabe abgebrochen (Ctrl-C, EOF). Exit-Code 1."""
+    """Interaktive Eingabe abgebrochen (Ctrl-C, Ctrl-D/EOF). Exit-Code 1.
+
+    Es wird nichts gespeichert (Spec §3.5).
+    """
 
     exit_code = EXIT_AUTH
     code = "aborted"
@@ -153,3 +156,30 @@ class PathNotFoundError(IliasError):
 
     exit_code = EXIT_AUTH
     code = "path_not_found"
+
+
+class ForeignHostError(ParserError):
+    """Ein Link aus ILIAS zeigt auf einen anderen Host als die Instanz. Exit 5, kein Request.
+
+    Unterklasse von ``ParserError``: ``download`` meldet die Datei als ``failed`` und lädt
+    den Rest weiter.
+    """
+
+    code = "foreign_host"
+
+
+class SizeLimitError(IliasError):
+    """Antwort größer als erlaubt (Seite oder Datei, SEC-25). Exit 5, keine Teilausgabe."""
+
+    exit_code = EXIT_PARSE
+    code = "size_limit"
+
+
+class UnsafePathError(IliasError):
+    """Zielpfad liegt außerhalb des Ausgabeordners oder führt über einen Symlink (SEC-16). Exit 1.
+
+    ``download`` meldet die Datei als ``failed`` und lädt den Rest weiter.
+    """
+
+    exit_code = EXIT_AUTH
+    code = "unsafe_path"

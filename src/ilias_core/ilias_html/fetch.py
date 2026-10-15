@@ -1,8 +1,8 @@
 """Kleiner, rein lesender GET-Helfer für die ILIAS-HTML-Seiten.
 
-Kein Bezug zur (parallel entstehenden) HTTP-Basis aus S5: lädt die gespeicherte
-Session (Cookies) aus dem vorhandenen ``SessionStore``, sendet nur GET mit dem
-eigenen User-Agent, hält die Request-Pause ein und prüft **vor jedem Parsen** in
+Die **einzige** HTTP-Schicht für die lesenden ILIAS-Befehle (`courses`, `ls`): lädt die
+gespeicherte Session (Cookies) aus dem vorhandenen ``SessionStore``, sendet nur GET mit
+dem eigenen User-Agent, hält die Request-Pause ein und prüft **vor jedem Parsen** in
 dieser Reihenfolge (Spec §7/§13.7):
 
 1. Verbindungsfehler -> Exit 4,
@@ -14,6 +14,12 @@ dieser Reihenfolge (Spec §7/§13.7):
 4. ``.alert-danger`` im Hauptinhalt bzw. Umleitung auf eine andere ref_id ->
    Exit 1 ``permission_denied``,
 5. sonst URL/HTML an den Parser.
+
+Rotiert ILIAS ``PHPSESSID``/``ilClientId`` (``Set-Cookie`` auf dem ILIAS-Host), wird der
+neue Wert gespeichert (Spec §4.4, L2): nur Allowlist-Cookies, nie Keycloak-/Fremd-Cookies,
+und nur nach einer Antwort, die keine abgelaufene Session meldet. Es gibt keinen
+zusätzlichen Vorab-Request zur Session-Prüfung; die erste Seite eines Befehls ist die
+Prüfung.
 
 Zusätzlich: harte Obergrenze ``ILIAS_CLI_MAX_REQUESTS`` (Default 300) -> Exit 5
 ``crawl_limit`` ohne Teilausgabe. Offline-Objekte sind nur ``visible: false``,
@@ -31,14 +37,18 @@ from bs4 import BeautifulSoup
 
 from .. import debuglog
 from ..auth.parsers import is_ilias_login_page
+from ..auth.verify import ilias_cookies
 from ..config import Config
 from ..errors import (
+    ForeignHostError,
     CrawlLimitError,
     NetworkError,
     NotLoggedInError,
     ParserError,
     PermissionDeniedError,
+    SizeLimitError,
     SessionExpiredError,
+    UnsafePathError,
 )
 from ..http import DEFAULT_TIMEOUT, user_agent
 from ..session import SessionStore
@@ -46,6 +56,13 @@ from ..session import SessionStore
 DEFAULT_REQUEST_INTERVAL = 1.0
 DEFAULT_MAX_REQUESTS = 300
 MAX_REDIRECTS = 10
+#: Harte Obergrenze pro Seitenabruf (HTML), überschreibbar mit ``ILIAS_CLI_MAX_PAGE_BYTES`` (SEC-25).
+DEFAULT_MAX_PAGE_BYTES = 10 * 1024 * 1024
+#: Harte Obergrenze pro Datei-Download, überschreibbar mit ``ILIAS_CLI_MAX_DOWNLOAD_BYTES`` (SEC-25).
+DEFAULT_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
+#: Erlaubte Abweichung von der in ILIAS angezeigten (gerundeten) Dateigröße.
+SIZE_MARGIN_FACTOR = 1.5
+SIZE_MARGIN_BYTES = 1024 * 1024
 ALERT_DANGER_SELECTOR = ".alert-danger"
 _LOGIN_MARKERS = ("login.php", "cmd=force_login", "reloadpublic=1")
 #: Weiterleitungen in den Login-/IdP-Fluss (OIDC/Keycloak, SAML/Shibboleth). Ihnen wird nie
@@ -58,6 +75,11 @@ _AUTH_FLOW_MARKERS = (
     "saml.php",
 )
 _DEFAULT_PORTS = {"http": 80, "https": 443}
+#: L2: nur diese ILIAS-Cookies werden bei einer Rotation neu gespeichert.
+COOKIE_ALLOWLIST = frozenset({"PHPSESSID", "ilClientId"})
+
+
+_ALLOWED_SCHEMES = frozenset({"", "http", "https"})
 
 
 def _origin(url: str) -> tuple[str, str, int | None]:
@@ -87,6 +109,36 @@ def is_auth_redirect(location_url: str, base_url: str) -> bool:
     if not host:  # relative Angabe ohne Host: bleibt auf der Instanz
         return False
     return host != base_host or port != base_port
+
+
+def same_instance_origin(url: str, base_url: str) -> bool:
+    """True, wenn ``url`` (absolut oder relativ) auf Schema, Host und Port der Instanz zeigt.
+
+    Nur ``http``/``https`` oder ein leeres Schema (echt relativ) sind erlaubt. ``javascript:``,
+    ``data:``, ``file:``, ``mailto:`` usw. haben keinen Host, sind aber **nicht** relativ.
+    """
+
+    scheme, host, port = _origin(url)
+    if scheme not in _ALLOWED_SCHEMES:
+        return False
+    if not host:  # relativ: bleibt auf der Instanz
+        return scheme == ""
+    return (scheme, host, port) == _origin(base_url)
+
+
+def _positive(value: int, default: int) -> int:
+    return value if value > 0 else default
+
+
+def download_limit(expected_size: int | None, hard_cap: int) -> int:
+    """Byte-Grenze für eine Datei: harte Obergrenze, bei bekannter ILIAS-Größe enger.
+
+    ILIAS zeigt Größen gerundet an (z. B. "1,2 MB"), daher Faktor + fester Puffer.
+    """
+
+    if expected_size is None or expected_size < 0:
+        return hard_cap
+    return min(hard_cap, int(expected_size * SIZE_MARGIN_FACTOR) + SIZE_MARGIN_BYTES)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -164,6 +216,13 @@ class Fetcher:
         self.request_count = 0
         self.max_requests = _env_int("ILIAS_CLI_MAX_REQUESTS", DEFAULT_MAX_REQUESTS)
         self.interval = _env_float("ILIAS_CLI_REQUEST_INTERVAL", DEFAULT_REQUEST_INTERVAL)
+        self.max_page_bytes = _positive(
+            _env_int("ILIAS_CLI_MAX_PAGE_BYTES", DEFAULT_MAX_PAGE_BYTES), DEFAULT_MAX_PAGE_BYTES
+        )
+        self.max_download_bytes = _positive(
+            _env_int("ILIAS_CLI_MAX_DOWNLOAD_BYTES", DEFAULT_MAX_DOWNLOAD_BYTES),
+            DEFAULT_MAX_DOWNLOAD_BYTES,
+        )
         self._client = client or self._build_client()
         self._cookies = self.store.load()
         if not self._cookies:
@@ -192,7 +251,7 @@ class Fetcher:
 
     # -- Anfrage --------------------------------------------------------
     def get(self, url: str, *, label: str = "Seite", expect_ref: int | None = None) -> IliasPage:
-        current = urljoin(self.base_url + "/", url)
+        current = self._first_url(url, label)
         for _ in range(MAX_REDIRECTS + 1):
             response = self._send(current, label)
             status = response.status_code
@@ -205,14 +264,22 @@ class Fetcher:
                     raise self._session_expired(label)
                 current = target
                 continue
-            return self._classify(response, label, expect_ref)
+            try:
+                page = self._classify(response, label, expect_ref)
+            except PermissionDeniedError:
+                self._store_rotated()  # Session ist gültig, nur das Objekt nicht lesbar
+                raise
+            self._store_rotated()
+            return page
         raise NetworkError(
             f"{label}: zu viele Weiterleitungen ({safe_url(url)}).",
             hint=f"ILIAS-Adresse prüfen oder `ilias status --instance {self.key}`.",
         )
 
     # -- Download (F5) ---------------------------------------------------
-    def download(self, url: str, dest, *, label: str = "Datei") -> DownloadedFile:
+    def download(
+        self, url: str, dest, *, label: str = "Datei", expected_size: int | None = None
+    ) -> DownloadedFile:
         """Datei per GET in ``dest`` streamen (erst ``<dest>.part``, dann umbenennen).
 
         Gleiche Prüfungen wie :meth:`get`: Weiterleitungen nur auf dem ILIAS-Host und nie
@@ -224,7 +291,7 @@ class Fetcher:
         from pathlib import Path
 
         dest = Path(dest)
-        current = urljoin(self.base_url + "/", url)
+        current = self._first_url(url, label)
         for _ in range(MAX_REDIRECTS + 1):
             self._count(label)
             try:
@@ -246,21 +313,37 @@ class Fetcher:
                         continue
                     content_type = (response.headers.get("content-type") or "").lower()
                     if status != 200 or content_type.startswith(("text/html", "application/xhtml")):
-                        response.read()
-                        page = self._classify(response, label, None)
+                        body = self._read_capped(response, self.max_page_bytes, label)
+                        page = self._classify(
+                            httpx.Response(status, headers=response.headers, content=body,
+                                           request=response.request),
+                            label,
+                            None,
+                        )
                         raise ParserError(
                             f"{label}: Server lieferte eine Seite statt einer Datei "
                             f"(HTTP {page.status}, {safe_url(page.url)}).",
                             hint="Objekt ggf. kein Download (z. B. Weblink) oder Seite geändert.",
                         )
+                    limit = download_limit(expected_size, self.max_download_bytes)
+                    declared = response.headers.get("content-length")
+                    if declared and declared.isdigit() and int(declared) > limit:
+                        raise self._too_large(label, limit, "ILIAS_CLI_MAX_DOWNLOAD_BYTES")
+                    from ..download import is_symlink, open_exclusive
+
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     part = dest.with_name(dest.name + ".part")
+                    if is_symlink(dest.parent) or is_symlink(dest):
+                        raise UnsafePathError(f"{label}: Symlink im Zielpfad, abgelehnt ({dest.name!r}).")
+                    handle = open_exclusive(part)
                     size = 0
                     try:
-                        with open(part, "wb") as handle:
+                        with handle:
                             for chunk in response.iter_bytes():
-                                handle.write(chunk)
                                 size += len(chunk)
+                                if size > limit:
+                                    raise self._too_large(label, limit, "ILIAS_CLI_MAX_DOWNLOAD_BYTES")
+                                handle.write(chunk)
                         part.replace(dest)
                     except BaseException:
                         part.unlink(missing_ok=True)
@@ -280,6 +363,20 @@ class Fetcher:
             f"{label}: zu viele Weiterleitungen ({safe_url(url)}).",
             hint=f"ILIAS-Adresse prüfen oder `ilias status --instance {self.key}`.",
         )
+
+    def _first_url(self, url: str, label: str) -> str:
+        """Erste URL einer Anfrage: absolute Links aus ILIAS nur auf den Instanz-Host (SEC-18).
+
+        Ein fremder Host (anderer Host, Port oder Schema) bricht **vor** jedem Request ab.
+        """
+
+        current = urljoin(self.base_url + "/", url)
+        if not same_instance_origin(current, self.base_url):
+            raise ForeignHostError(
+                f"{label}: Link zeigt auf einen fremden Host ({safe_url(current)}); nicht abgerufen.",
+                hint=f"Nur Inhalte von {self.base_url} werden geladen.",
+            )
+        return current
 
     def _count(self, label: str) -> None:
         if self.request_count >= self.max_requests:
@@ -304,18 +401,47 @@ class Fetcher:
         if self.interval > 0:
             time.sleep(self.interval)
         try:
-            response = self._client.get(url)
+            streamed = self._client.send(self._client.build_request("GET", url), stream=True)
+            try:
+                body = self._read_capped(streamed, self.max_page_bytes, label)
+            finally:
+                streamed.close()
         except httpx.RequestError as exc:
             raise NetworkError(
                 f"{label}: Verbindung fehlgeschlagen ({type(exc).__name__}, {safe_url(url)}).",
                 hint=f"Erreichbarkeit von {self.base_url} prüfen (ggf. VPN).",
             ) from None
+        response = httpx.Response(
+            streamed.status_code, headers=streamed.headers, content=body, request=streamed.request
+        )
         if response.status_code >= 500:
             raise NetworkError(
                 f"{label}: Serverfehler HTTP {response.status_code} ({safe_url(url)}).",
                 hint=f"Später erneut versuchen; `ilias status --instance {self.key}` prüft die Session.",
             )
         return response
+
+    @staticmethod
+    def _too_large(label: str, limit: int, env: str) -> SizeLimitError:
+        return SizeLimitError(
+            f"{label}: Antwort größer als {limit} Bytes; abgebrochen, nichts weitergegeben.",
+            hint=f"Grenze mit `{env}` anpassen, falls die Datei/Seite wirklich so groß ist.",
+        )
+
+    def _read_capped(self, response: httpx.Response, limit: int, label: str) -> bytes:
+        """Antwort vollständig lesen, aber nie mehr als ``limit`` Bytes (SEC-25)."""
+
+        declared = response.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > limit:
+            raise self._too_large(label, limit, "ILIAS_CLI_MAX_PAGE_BYTES")
+        chunks: list[bytes] = []
+        size = 0
+        for chunk in response.iter_bytes():
+            size += len(chunk)
+            if size > limit:
+                raise self._too_large(label, limit, "ILIAS_CLI_MAX_PAGE_BYTES")
+            chunks.append(chunk)
+        return b"".join(chunks)
 
     def _classify(self, response: httpx.Response, label: str, expect_ref: int | None) -> IliasPage:
         html = response.text
@@ -334,6 +460,25 @@ class Fetcher:
                 hint=f"Mitgliedschaft mit `ilias courses --instance {self.key}` prüfen.",
             )
         return IliasPage(html=html, url=str(response.url), status=response.status_code)
+
+    def _store_rotated(self) -> None:
+        """Neue Allowlist-Cookie-Werte (Rotation) übernehmen und speichern.
+
+        Andere gespeicherte Cookies bleiben unverändert; Keycloak-/Fremd-Cookies werden
+        nie übernommen (``ilias_cookies`` filtert auf den ILIAS-Host). Nur bei einer
+        echten Änderung wird geschrieben.
+        """
+
+        current = ilias_cookies(self._client, self.base_url)
+        rotated = {
+            name: value
+            for name, value in current.items()
+            if name in COOKIE_ALLOWLIST and value and self._cookies.get(name) != value
+        }
+        if not rotated:
+            return
+        self._cookies = {**self._cookies, **rotated}
+        self.store.save(self._cookies)
 
     def _session_expired(self, label: str) -> SessionExpiredError:
         return SessionExpiredError(

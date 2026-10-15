@@ -61,7 +61,9 @@ class Backend(abc.ABC):
         erst zu laden (ILIAS, Spec §6.1). Moodle ignoriert den Parameter.
         """
 
-    def download_file(self, fileurl: str, dest: Any, *, label: str = "Datei") -> Any:
+    def download_file(
+        self, fileurl: str, dest: Any, *, label: str = "Datei", expected_size: int | None = None
+    ) -> Any:
         """Eine Datei nach ``dest`` laden (F5). Default: nicht unterstützt."""
         from ..errors import NotSupportedError
 
