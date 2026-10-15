@@ -14,14 +14,12 @@ GET-Helfer und baut die Baum-Modelle.
 from __future__ import annotations
 
 from collections.abc import Callable
-from urllib.parse import urljoin
-
 from ..client import IliasClient
 from ..errors import ParserError
 from ..ilias_html import container as container_parser
 from ..ilias_html import membership as membership_parser
 from ..ilias_html import props as props_parser
-from ..ilias_html.fetch import Fetcher, safe_url
+from ..ilias_html.fetch import Fetcher, join_base_url, safe_url
 from ..models import (
     Course,
     Credentials,
@@ -118,7 +116,7 @@ class IliasBackend(Backend):
         return self._fetcher
 
     def _resolve_url(self, href: str) -> str:
-        return urljoin(self.base_url + "/", href) if href else ""
+        return join_base_url(self.base_url, href) if href else ""
 
     def _load_blocks(self, fetcher: Fetcher, ref: int, label: str):
         page = fetcher.get(CONTAINER_PATH.format(ref=ref), label=label, expect_ref=ref)

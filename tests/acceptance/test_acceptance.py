@@ -318,15 +318,27 @@ def test_default_config_path_in_home(h: Harness):
 
 def test_base_url_with_path_prefix(tmp_path):
     """N7: andere ILIAS-Instanz mit Pfad-Präfix (z. B. https://host/ilias) über base_url konfigurierbar."""
-    from .fake_servers import FakeWorld
+    from hhn.conftest import HhnHarness
+    from hhn.fake_hhn import HhnWorld
 
-    w = FakeWorld(username=USERNAME, password=PASSWORD, totp=TOTP, ilias_prefix="/ilias").start()
+    w = HhnWorld(username=USERNAME, password=PASSWORD, totp=TOTP, ilias_prefix="/ilias").start()
     try:
-        h = Harness(tmp_path, w)
+        h = HhnHarness(tmp_path, w)
         r = h.login()
         assert r.exit_code == 0, str(r)
         s = h.run("status")
         assert s.exit_code == 0, str(s)
+        n_before = len(w.requests)
+        c = h.run("courses", "--json")
+        assert c.exit_code == 0, str(c)
+        membership = [
+            r
+            for r in w.requests[n_before:]
+            if r.server == "ilias"
+            and (r.query.get("baseClass", [""])[0].lower() == "ilmembershipoverviewgui")
+        ]
+        assert membership, "kein Request auf die Kursübersicht"
+        assert membership[-1].path == "/ilias/ilias.php", membership[-1].path
     finally:
         w.stop()
     from .conftest import assert_no_external_network

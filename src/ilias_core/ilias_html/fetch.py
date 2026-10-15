@@ -46,6 +46,17 @@ from ..session import SessionStore
 DEFAULT_REQUEST_INTERVAL = 1.0
 DEFAULT_MAX_REQUESTS = 300
 MAX_REDIRECTS = 10
+
+
+def join_base_url(base_url: str, url: str) -> str:
+    """Pfad oder relative URL gegen ``base_url`` auflösen (Pfad-Präfix in ``base_url`` bleibt erhalten)."""
+
+    if url.startswith(("http://", "https://")):
+        return url
+    root = base_url.rstrip("/") + "/"
+    if url.startswith("/"):
+        return urljoin(root, url.lstrip("/"))
+    return urljoin(root, url)
 ALERT_DANGER_SELECTOR = ".alert-danger"
 _LOGIN_MARKERS = ("login.php", "cmd=force_login", "reloadpublic=1")
 #: Weiterleitungen in den Login-/IdP-Fluss (OIDC/Keycloak, SAML/Shibboleth). Ihnen wird nie
@@ -192,7 +203,7 @@ class Fetcher:
 
     # -- Anfrage --------------------------------------------------------
     def get(self, url: str, *, label: str = "Seite", expect_ref: int | None = None) -> IliasPage:
-        current = urljoin(self.base_url + "/", url)
+        current = join_base_url(self.base_url, url)
         for _ in range(MAX_REDIRECTS + 1):
             response = self._send(current, label)
             status = response.status_code
@@ -224,7 +235,7 @@ class Fetcher:
         from pathlib import Path
 
         dest = Path(dest)
-        current = urljoin(self.base_url + "/", url)
+        current = join_base_url(self.base_url, url)
         for _ in range(MAX_REDIRECTS + 1):
             self._count(label)
             try:
