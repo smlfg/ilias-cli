@@ -46,6 +46,7 @@ from ..errors import (
     NotLoggedInError,
     ParserError,
     PermissionDeniedError,
+    SizeLimitError,
     SessionExpiredError,
 )
 from ..http import DEFAULT_TIMEOUT, user_agent
@@ -54,6 +55,13 @@ from ..session import SessionStore
 DEFAULT_REQUEST_INTERVAL = 1.0
 DEFAULT_MAX_REQUESTS = 300
 MAX_REDIRECTS = 10
+#: Harte Obergrenze pro Seitenabruf (HTML), überschreibbar mit ``ILIAS_CLI_MAX_PAGE_BYTES`` (SEC-25).
+DEFAULT_MAX_PAGE_BYTES = 10 * 1024 * 1024
+#: Harte Obergrenze pro Datei-Download, überschreibbar mit ``ILIAS_CLI_MAX_DOWNLOAD_BYTES`` (SEC-25).
+DEFAULT_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
+#: Erlaubte Abweichung von der in ILIAS angezeigten (gerundeten) Dateigröße.
+SIZE_MARGIN_FACTOR = 1.5
+SIZE_MARGIN_BYTES = 1024 * 1024
 ALERT_DANGER_SELECTOR = ".alert-danger"
 _LOGIN_MARKERS = ("login.php", "cmd=force_login", "reloadpublic=1")
 #: Weiterleitungen in den Login-/IdP-Fluss (OIDC/Keycloak, SAML/Shibboleth). Ihnen wird nie
@@ -106,6 +114,21 @@ def same_instance_origin(url: str, base_url: str) -> bool:
     if not host:  # relativ: bleibt auf der Instanz
         return True
     return (scheme, host, port) == _origin(base_url)
+
+
+def _positive(value: int, default: int) -> int:
+    return value if value > 0 else default
+
+
+def download_limit(expected_size: int | None, hard_cap: int) -> int:
+    """Byte-Grenze für eine Datei: harte Obergrenze, bei bekannter ILIAS-Größe enger.
+
+    ILIAS zeigt Größen gerundet an (z. B. "1,2 MB"), daher Faktor + fester Puffer.
+    """
+
+    if expected_size is None or expected_size < 0:
+        return hard_cap
+    return min(hard_cap, int(expected_size * SIZE_MARGIN_FACTOR) + SIZE_MARGIN_BYTES)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -183,6 +206,13 @@ class Fetcher:
         self.request_count = 0
         self.max_requests = _env_int("ILIAS_CLI_MAX_REQUESTS", DEFAULT_MAX_REQUESTS)
         self.interval = _env_float("ILIAS_CLI_REQUEST_INTERVAL", DEFAULT_REQUEST_INTERVAL)
+        self.max_page_bytes = _positive(
+            _env_int("ILIAS_CLI_MAX_PAGE_BYTES", DEFAULT_MAX_PAGE_BYTES), DEFAULT_MAX_PAGE_BYTES
+        )
+        self.max_download_bytes = _positive(
+            _env_int("ILIAS_CLI_MAX_DOWNLOAD_BYTES", DEFAULT_MAX_DOWNLOAD_BYTES),
+            DEFAULT_MAX_DOWNLOAD_BYTES,
+        )
         self._client = client or self._build_client()
         self._cookies = self.store.load()
         if not self._cookies:
@@ -237,7 +267,9 @@ class Fetcher:
         )
 
     # -- Download (F5) ---------------------------------------------------
-    def download(self, url: str, dest, *, label: str = "Datei") -> DownloadedFile:
+    def download(
+        self, url: str, dest, *, label: str = "Datei", expected_size: int | None = None
+    ) -> DownloadedFile:
         """Datei per GET in ``dest`` streamen (erst ``<dest>.part``, dann umbenennen).
 
         Gleiche Prüfungen wie :meth:`get`: Weiterleitungen nur auf dem ILIAS-Host und nie
@@ -271,21 +303,32 @@ class Fetcher:
                         continue
                     content_type = (response.headers.get("content-type") or "").lower()
                     if status != 200 or content_type.startswith(("text/html", "application/xhtml")):
-                        response.read()
-                        page = self._classify(response, label, None)
+                        body = self._read_capped(response, self.max_page_bytes, label)
+                        page = self._classify(
+                            httpx.Response(status, headers=response.headers, content=body,
+                                           request=response.request),
+                            label,
+                            None,
+                        )
                         raise ParserError(
                             f"{label}: Server lieferte eine Seite statt einer Datei "
                             f"(HTTP {page.status}, {safe_url(page.url)}).",
                             hint="Objekt ggf. kein Download (z. B. Weblink) oder Seite geändert.",
                         )
+                    limit = download_limit(expected_size, self.max_download_bytes)
+                    declared = response.headers.get("content-length")
+                    if declared and declared.isdigit() and int(declared) > limit:
+                        raise self._too_large(label, limit, "ILIAS_CLI_MAX_DOWNLOAD_BYTES")
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     part = dest.with_name(dest.name + ".part")
                     size = 0
                     try:
                         with open(part, "wb") as handle:
                             for chunk in response.iter_bytes():
-                                handle.write(chunk)
                                 size += len(chunk)
+                                if size > limit:
+                                    raise self._too_large(label, limit, "ILIAS_CLI_MAX_DOWNLOAD_BYTES")
+                                handle.write(chunk)
                         part.replace(dest)
                     except BaseException:
                         part.unlink(missing_ok=True)
@@ -343,18 +386,47 @@ class Fetcher:
         if self.interval > 0:
             time.sleep(self.interval)
         try:
-            response = self._client.get(url)
+            streamed = self._client.send(self._client.build_request("GET", url), stream=True)
+            try:
+                body = self._read_capped(streamed, self.max_page_bytes, label)
+            finally:
+                streamed.close()
         except httpx.RequestError as exc:
             raise NetworkError(
                 f"{label}: Verbindung fehlgeschlagen ({type(exc).__name__}, {safe_url(url)}).",
                 hint=f"Erreichbarkeit von {self.base_url} prüfen (ggf. VPN).",
             ) from None
+        response = httpx.Response(
+            streamed.status_code, headers=streamed.headers, content=body, request=streamed.request
+        )
         if response.status_code >= 500:
             raise NetworkError(
                 f"{label}: Serverfehler HTTP {response.status_code} ({safe_url(url)}).",
                 hint=f"Später erneut versuchen; `ilias status --instance {self.key}` prüft die Session.",
             )
         return response
+
+    @staticmethod
+    def _too_large(label: str, limit: int, env: str) -> SizeLimitError:
+        return SizeLimitError(
+            f"{label}: Antwort größer als {limit} Bytes; abgebrochen, nichts weitergegeben.",
+            hint=f"Grenze mit `{env}` anpassen, falls die Datei/Seite wirklich so groß ist.",
+        )
+
+    def _read_capped(self, response: httpx.Response, limit: int, label: str) -> bytes:
+        """Antwort vollständig lesen, aber nie mehr als ``limit`` Bytes (SEC-25)."""
+
+        declared = response.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > limit:
+            raise self._too_large(label, limit, "ILIAS_CLI_MAX_PAGE_BYTES")
+        chunks: list[bytes] = []
+        size = 0
+        for chunk in response.iter_bytes():
+            size += len(chunk)
+            if size > limit:
+                raise self._too_large(label, limit, "ILIAS_CLI_MAX_PAGE_BYTES")
+            chunks.append(chunk)
+        return b"".join(chunks)
 
     def _classify(self, response: httpx.Response, label: str, expect_ref: int | None) -> IliasPage:
         html = response.text

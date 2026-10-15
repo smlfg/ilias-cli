@@ -43,6 +43,8 @@ class MiniServer:
                 headers = dict(headers)
                 headers.setdefault("Content-Length", str(len(body)))
                 for k, v in headers.items():
+                    if v == "":  # Header weglassen (z. B. Content-Length: Ende = Verbindungsende)
+                        continue
                     self.send_header(k, v)
                 self.end_headers()
                 try:

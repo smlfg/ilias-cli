@@ -166,3 +166,10 @@ class ForeignHostError(ParserError):
     """
 
     code = "foreign_host"
+
+
+class SizeLimitError(IliasError):
+    """Antwort größer als erlaubt (Seite oder Datei, SEC-25). Exit 5, keine Teilausgabe."""
+
+    exit_code = EXIT_PARSE
+    code = "size_limit"

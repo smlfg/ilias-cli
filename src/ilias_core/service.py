@@ -149,7 +149,12 @@ class Service:
         if dry_run:
             return DownloadItem(**base, status="planned", size=planned.size)
         try:
-            got = self.backend.download_file(planned.fileurl, course_dir / planned.relpath, label=f"Datei {planned.name!r}")
+            got = self.backend.download_file(
+                planned.fileurl,
+                course_dir / planned.relpath,
+                label=f"Datei {planned.name!r}",
+                expected_size=planned.size,
+            )
         except (PermissionDeniedError, ParserError) as exc:
             return DownloadItem(**base, status="failed", error_code=exc.code, message=exc.message or str(exc))
         manifest[dl.manifest_key(planned)] = {
