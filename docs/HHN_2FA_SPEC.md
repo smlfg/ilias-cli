@@ -101,7 +101,7 @@ ilias setup --list [--filter TEXT] [--json]
 - **Kein Keep-Alive-Daemon** in dieser Runde. Optional später: `ilias status` als Cron-Ping, falls die Messung eine reine Leerlauf-Grenze zeigt (§9).
 
 ### 4.3 Nur lesen
-`courses`/`ls` senden nur `GET`, eigener User-Agent `ilias-cli/<version>`, höchstens ~1 Request/s (N2). Die Pause ist per `ILIAS_CLI_REQUEST_INTERVAL` (Sekunden, Default `1.0`) einstellbar; die Tests setzen `0`.
+`courses`/`ls` senden nur `GET`, eigener User-Agent `ilias-cli/<version>`, höchstens ~1 Request/s (N2). Die Pause ist per `ILIAS_CLI_REQUEST_INTERVAL` (Sekunden, Default `1.0`) einstellbar; die Tests setzen `0`. Pro Abruf gilt eine harte Byte-Obergrenze `ILIAS_CLI_MAX_RESPONSE_BYTES` (Default 10 MiB, SEC-25) → Exit 5 `response_too_large`, keine Teilausgabe.
 
 ### 4.4 Abgelaufen und nicht eingeloggt
 | Lage | Erkennung | Exit / `error.code` |

@@ -16,8 +16,9 @@ dieser Reihenfolge (Spec §7/§13.7):
 5. sonst URL/HTML an den Parser.
 
 Zusätzlich: harte Obergrenze ``ILIAS_CLI_MAX_REQUESTS`` (Default 300) -> Exit 5
-``crawl_limit`` ohne Teilausgabe. Offline-Objekte sind nur ``visible: false``,
-kein Seitenfehler.
+``crawl_limit`` ohne Teilausgabe; harte Byte-Obergrenze ``ILIAS_CLI_MAX_RESPONSE_BYTES``
+(Default 10 MiB) pro Abruf -> Exit 5 ``response_too_large`` ohne Teilausgabe (SEC-25).
+Offline-Objekte sind nur ``visible: false``, kein Seitenfehler.
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ from ..errors import (
     NotLoggedInError,
     ParserError,
     PermissionDeniedError,
+    ResponseTooLargeError,
     SessionExpiredError,
 )
 from ..http import DEFAULT_TIMEOUT, user_agent
@@ -45,6 +47,7 @@ from ..session import SessionStore
 
 DEFAULT_REQUEST_INTERVAL = 1.0
 DEFAULT_MAX_REQUESTS = 300
+DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024
 MAX_REDIRECTS = 10
 ALERT_DANGER_SELECTOR = ".alert-danger"
 _LOGIN_MARKERS = ("login.php", "cmd=force_login", "reloadpublic=1")
@@ -163,6 +166,7 @@ class Fetcher:
         self.key = config.instance
         self.request_count = 0
         self.max_requests = _env_int("ILIAS_CLI_MAX_REQUESTS", DEFAULT_MAX_REQUESTS)
+        self.max_response_bytes = _env_int("ILIAS_CLI_MAX_RESPONSE_BYTES", DEFAULT_MAX_RESPONSE_BYTES)
         self.interval = _env_float("ILIAS_CLI_REQUEST_INTERVAL", DEFAULT_REQUEST_INTERVAL)
         self._client = client or self._build_client()
         self._cookies = self.store.load()
@@ -246,8 +250,14 @@ class Fetcher:
                         continue
                     content_type = (response.headers.get("content-type") or "").lower()
                     if status != 200 or content_type.startswith(("text/html", "application/xhtml")):
-                        response.read()
-                        page = self._classify(response, label, None)
+                        body = self._read_capped_body(response, label)
+                        html_response = httpx.Response(
+                            status_code=status,
+                            headers=response.headers,
+                            content=body,
+                            request=response.request,
+                        )
+                        page = self._classify(html_response, label, None)
                         raise ParserError(
                             f"{label}: Server lieferte eine Seite statt einer Datei "
                             f"(HTTP {page.status}, {safe_url(page.url)}).",
@@ -259,8 +269,13 @@ class Fetcher:
                     try:
                         with open(part, "wb") as handle:
                             for chunk in response.iter_bytes():
-                                handle.write(chunk)
                                 size += len(chunk)
+                                if size > self.max_response_bytes:
+                                    raise ResponseTooLargeError(
+                                        f"{label}: Download überschreitet {self.max_response_bytes} Bytes ({safe_url(current)}).",
+                                        hint="`ILIAS_CLI_MAX_RESPONSE_BYTES` erhöhen oder kleinere Datei wählen.",
+                                    )
+                                handle.write(chunk)
                         part.replace(dest)
                     except BaseException:
                         part.unlink(missing_ok=True)
@@ -304,18 +319,52 @@ class Fetcher:
         if self.interval > 0:
             time.sleep(self.interval)
         try:
-            response = self._client.get(url)
+            with self._client.stream("GET", url) as response:
+                status = response.status_code
+                if status >= 500:
+                    raise NetworkError(
+                        f"{label}: Serverfehler HTTP {status} ({safe_url(url)}).",
+                        hint=f"Später erneut versuchen; `ilias status --instance {self.key}` prüft die Session.",
+                    )
+                if 300 <= status < 400:
+                    return httpx.Response(
+                        status_code=status,
+                        headers=response.headers,
+                        content=b"",
+                        request=response.request,
+                    )
+                body = self._read_capped_body(response, label)
+                return httpx.Response(
+                    status_code=status,
+                    headers=response.headers,
+                    content=body,
+                    request=response.request,
+                )
         except httpx.RequestError as exc:
             raise NetworkError(
                 f"{label}: Verbindung fehlgeschlagen ({type(exc).__name__}, {safe_url(url)}).",
                 hint=f"Erreichbarkeit von {self.base_url} prüfen (ggf. VPN).",
             ) from None
-        if response.status_code >= 500:
-            raise NetworkError(
-                f"{label}: Serverfehler HTTP {response.status_code} ({safe_url(url)}).",
-                hint=f"Später erneut versuchen; `ilias status --instance {self.key}` prüft die Session.",
+
+    def _read_capped_body(self, response: httpx.Response, label: str) -> bytes:
+        limit = self.max_response_bytes
+        length = response.headers.get("content-length")
+        if length and length.isdigit() and int(length) > limit:
+            response.close()
+            raise ResponseTooLargeError(
+                f"{label}: Antwort überschreitet {limit} Bytes (Content-Length, {safe_url(str(response.url))}).",
+                hint="`ILIAS_CLI_MAX_RESPONSE_BYTES` erhöhen oder kleineren Umfang wählen.",
             )
-        return response
+        buf = bytearray()
+        for chunk in response.iter_bytes():
+            buf.extend(chunk)
+            if len(buf) > limit:
+                response.close()
+                raise ResponseTooLargeError(
+                    f"{label}: Antwort überschreitet {limit} Bytes ({safe_url(str(response.url))}).",
+                    hint="`ILIAS_CLI_MAX_RESPONSE_BYTES` erhöhen oder kleineren Umfang wählen.",
+                )
+        return bytes(buf)
 
     def _classify(self, response: httpx.Response, label: str, expect_ref: int | None) -> IliasPage:
         html = response.text
