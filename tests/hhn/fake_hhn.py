@@ -61,8 +61,9 @@ def _e(text: str) -> str:
 
 @dataclass
 class HhnWorld(FakeWorld):
-    # normal | error503 | garbage | empty
+    # normal | error503 | garbage | empty | oversized (SEC-25-Test: sehr großer Body)
     membership_mode: str = "normal"
+    oversized_padding: int = 200_000
     # ref_id -> normal | error500 | garbage | login_redirect | forbidden | public_view
     container_modes: dict[int, str] = field(default_factory=dict)
     # ref_id -> zusätzliche Items im letzten Block (z. B. Zyklus 900202 -> 900201)
@@ -251,6 +252,12 @@ class HhnWorld(FakeWorld):
                 handler._send(503, "<h1>503 Service Temporarily Unavailable</h1><hr><center>nginx</center>")
             elif self.membership_mode == "garbage":
                 handler._send(200, "<!DOCTYPE html><html><body><h1>Wartungsarbeiten</h1></body></html>")
+            elif self.membership_mode == "oversized":
+                pad = "x" * self.oversized_padding
+                handler._send(
+                    200,
+                    self.page("Meine Kurse und Gruppen", self.membership_html() + f'<div id="pad" aria-hidden="true">{pad}</div>'),
+                )
             else:
                 handler._send(200, self.page("Meine Kurse und Gruppen", self.membership_html()))
             return True

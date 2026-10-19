@@ -148,6 +148,13 @@ class CrawlLimitError(IliasError):
     code = "crawl_limit"
 
 
+class ResponseTooLargeError(IliasError):
+    """Antwortkörper überschreitet die harte Byte-Obergrenze (SEC-25). Exit 5, keine Teilausgabe."""
+
+    exit_code = EXIT_PARSE
+    code = "response_too_large"
+
+
 class PathNotFoundError(IliasError):
     """`download <kurs> <pfad>`: Pfad oder ref_id passt auf keine Datei im Kurs."""
 
