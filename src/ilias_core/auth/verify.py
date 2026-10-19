@@ -11,12 +11,13 @@ Ein Login gilt erst als erfolgreich, wenn
 from __future__ import annotations
 
 from enum import Enum
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
 from .. import debuglog
 from ..errors import AuthenticationError, NetworkError, ParserError
+from ..ilias_html.fetch import MAX_REDIRECTS, is_auth_redirect
 from .parsers import is_ilias_logged_in, is_ilias_login_page
 
 SESSION_COOKIE_NAME = "PHPSESSID"
@@ -95,11 +96,44 @@ def session_changed(before: dict[str, str], after: dict[str, str]) -> bool:
 def check_dashboard(client: httpx.Client, base_url: str) -> DashboardState:
     """Ruft das Dashboard ab und klassifiziert die Antwort."""
 
+    current = dashboard_url(base_url)
+    response: httpx.Response | None = None
     try:
-        response = client.get(dashboard_url(base_url))
+        for _ in range(MAX_REDIRECTS + 1):
+            response = client.get(current)
+            status = response.status_code
+            if 300 <= status < 400:
+                location = response.headers.get("location") or ""
+                if not location:
+                    raise ParserError("Dashboard-Prüfung: Weiterleitung ohne Ziel.")
+                target = urljoin(str(response.url), location)
+                if is_auth_redirect(target, base_url):
+                    state = DashboardState.LOGIN
+                    debuglog.debug(
+                        "Prüfung Dashboard: HTTP %s, Ziel %s -> %s (Auth-Redirect, nicht gefolgt)",
+                        response.status_code,
+                        debuglog.redact_url(target),
+                        state.value,
+                    )
+                    return state
+                if not same_origin(target, base_url):
+                    state = DashboardState.FOREIGN
+                    debuglog.debug(
+                        "Prüfung Dashboard: HTTP %s, Ziel %s -> %s (fremder Host, nicht gefolgt)",
+                        response.status_code,
+                        debuglog.redact_url(target),
+                        state.value,
+                    )
+                    return state
+                current = target
+                continue
+            break
+        else:
+            raise NetworkError("Dashboard-Prüfung: zu viele Weiterleitungen.")
     except httpx.HTTPError as exc:
         raise NetworkError("Netzwerkfehler bei der Session-Prüfung.") from exc
 
+    assert response is not None
     state = _classify_dashboard(response, base_url)
     debuglog.debug(
         "Prüfung Dashboard: HTTP %s, Ziel %s -> %s",

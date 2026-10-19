@@ -118,7 +118,7 @@ class IliasClient:
         )
 
     def _dashboard_state(self, cookies: dict[str, str]) -> DashboardState:
-        client = self._client()
+        client = self._status_client()
         try:
             host = (urlsplit(self.config.base_url).hostname or "").lower()
             for name, value in cookies.items():
@@ -140,6 +140,11 @@ class IliasClient:
         if self._http_client is not None:
             return self._http_client
         return build_client(self.config)
+
+    def _status_client(self) -> httpx.Client:
+        if self._http_client is not None:
+            return self._http_client
+        return build_client(self.config, follow_redirects=False)
 
     def _close_if_owned(self, client: httpx.Client) -> None:
         if self._http_client is None:
