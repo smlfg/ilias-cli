@@ -1,5 +1,10 @@
 # ilias-cli
 
+> **Status: Beta (0.x).** Getestet mit Fixtures und Mocks (326 Tests grün). Ein Live-Test an der
+> HHN steht noch aus; Befehle und Ausgaben können sich vor 1.0 ändern.
+>
+> Installation: `uv tool install ilias-cli` oder `pipx install ilias-cli`, danach `ilias --help`.
+
 CLI (später MCP-Server) für **ILIAS** (Hochschule Heilbronn, Uni Mannheim) und **Moodle**
 (Hochschule Mannheim). Anforderungen: [ANFORDERUNGEN.md](ANFORDERUNGEN.md), Vertrag:
 [INTERFACE.md](INTERFACE.md), Moodle-Details: [MOODLE.md](MOODLE.md).
