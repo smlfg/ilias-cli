@@ -72,3 +72,12 @@ def test_disposition_filename():
     assert _disposition_filename("attachment; filename*=UTF-8''L%C3%B6sung%201.pdf") == "Lösung 1.pdf"
     assert _disposition_filename('inline; filename="a b.pdf"') == "a b.pdf"
     assert _disposition_filename(None) is None
+
+
+def test_course_folder_name_drops_semester():
+    assert (
+        dl.course_folder_name("Beispielkurs Programmierung (WiSe 2026/27)", "WiSe 2026/27")
+        == "Beispielkurs Programmierung"
+    )
+    assert dl.course_folder_name("Mathematik A", "WiSe 2026/27") == "Mathematik A"
+    assert dl.course_folder_name("Kurs (WiSe 2026/27)") == "Kurs (WiSe 2026/27)"

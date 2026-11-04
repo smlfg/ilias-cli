@@ -30,6 +30,7 @@ from ilias_core.models import (
     SessionStatus,
 )
 from ilias_core.secrets import Secret
+from ilias_core.version import __version__
 from ilias_core.service import Service, open_service
 
 from . import output, prompts
@@ -42,6 +43,25 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(__version__)
+        raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    version: bool = typer.Option(
+        None,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Version ausgeben und beenden.",
+    ),
+) -> None:
+    """Gemeinsame Optionen; die eigentlichen Befehle stehen unten."""
+
 
 JSON_OPTION = typer.Option(False, "--json", help="Maschinenlesbare JSON-Ausgabe.")
 INSTANCE_OPTION = typer.Option(
@@ -368,6 +388,11 @@ def main() -> None:
     except IliasError as exc:
         output.print_error(str(exc))
         raise SystemExit(exc.exit_code) from exc
+    except KeyboardInterrupt:
+        output.print_error("Abgebrochen.")
+        raise SystemExit(130) from None
+    except BrokenPipeError:
+        raise SystemExit(0) from None
 
 
 if __name__ == "__main__":  # pragma: no cover
