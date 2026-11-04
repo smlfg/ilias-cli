@@ -38,6 +38,7 @@ from __future__ import annotations
 import os
 import re
 import tomllib
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,7 @@ from typing import Any
 from .errors import ConfigError
 
 ENV_CONFIG_DIR = "ILIAS_CLI_CONFIG_DIR"
+ENV_BASE_URL = "ILIAS_CLI_BASE_URL"
 
 AUTH_OIDC_KEYCLOAK = "oidc-keycloak"
 AUTH_SAML_SHIBBOLETH = "saml-shibboleth"
@@ -120,6 +122,26 @@ def config_dir() -> Path:
 
 def config_path() -> Path:
     return default_config_dir() / CONFIG_FILE_NAME
+
+
+def _env_base_url() -> str | None:
+    """Basis-URL aus ``ILIAS_CLI_BASE_URL`` (überschreibt die Instanz-URL).
+
+    Nur ``http``/``https`` mit Host werden akzeptiert. Ungültige Werte enden als
+    ``ConfigError`` ohne Traceback und nennen den nächsten Schritt.
+    """
+
+    raw = os.environ.get(ENV_BASE_URL)
+    if raw is None or not raw.strip():
+        return None
+    value = raw.strip()
+    parts = urlsplit(value)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise ConfigError(
+            f"{ENV_BASE_URL} ist keine gültige http(s)-URL: {value!r}.",
+            hint=f"{ENV_BASE_URL} z. B. auf http://127.0.0.1:8080 setzen oder die Variable entfernen.",
+        )
+    return value.rstrip("/")
 
 
 @dataclass(frozen=True)
@@ -243,6 +265,7 @@ def load_config(path: Path | str | None = None, *, instance: str | None = None) 
                 f"Unbekanntes Auth-Verfahren {auth!r}. Erlaubt: {', '.join(ILIAS_AUTH_METHODS)}."
             )
 
+    base_url = _env_base_url() or base_url
     return Config(
         base_url=base_url.rstrip("/"),
         client_id=client_id,
