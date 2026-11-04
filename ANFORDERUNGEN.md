@@ -6,6 +6,28 @@ Quellen-Kennzeichnung: **[V]** = selbst geprüft (öffentlich, ohne Login, 07.10
 
 ---
 
+## Nachfrage
+
+Stand: 04.11.2026. Dieses Repo ist keine Neuentwicklung, sondern die **Nachrüstung eines
+bestehenden Tools** (Tool-Brief `ilias-cli`). Die Nachfrage ist damit belegt durch den
+Bestand und die dokumentierten Nutzeraufgaben, nicht durch eine neue Marktrecherche:
+
+- **Tool-Brief** (Grundlage dieser Nachrüstung): Login/Session, Kurse, Kursinhalt und
+  Datei-Download im Terminal; die drei wichtigsten Sitzungen sind Installation+Login,
+  `courses`/`ls` und `download` mit `[j/N]`.
+- **README.md** und **INTERFACE.md** dieses Repos: `ilias` existiert bereits als
+  Kommandozeilen-Tool für ILIAS (HHN, Uni Mannheim) und Moodle (HS Mannheim); die
+  bekannten Lücken sind dort und im Brief benannt.
+- **ANFORDERUNGEN.md §2** (UC2 „Vorlesungsmaterial offline und für Agenten verfügbar“,
+  UC4 Kursliste) und **docs/UX.md** (live erkundete Login- und Lese-Wege, ohne echtes
+  Konto).
+
+Eine Prüfung auf Smithery/Glama/mcp.so oder externe GitHub-Issues war für diese
+Nachrüstung nicht nötig und ist nicht Teil des Belegs. Neue schreibende Server-Aktionen
+(z. B. `submit`, `join`) bleiben außerhalb dieses Schritts.
+
+---
+
 ## 1. Ziel & Scope
 
 - **Ziel:** Alles, was im Studium über ILIAS läuft (Vorlesungsmaterial, Abgaben, Fristen), wird per Kommandozeile und später per Agent nutzbar. Fristen sollen nicht mehr verpasst werden.
@@ -33,9 +55,9 @@ Erstnutzer ist Samuel. Er arbeitet auf mehreren Geräten (Mac und andere) und mi
 |---|---|---|---|
 | F1 | **Must** | Login mit HHN-Account inkl. 2FA, Session speichern, Status anzeigen, Logout | `ilias login` · `ilias status` · `ilias logout` |
 | F2 | **Must** | Eigene Kurse und Gruppen auflisten (Titel, ref_id, Semester) | `ilias courses` |
-| F3 | **Must** | Inhalt eines Kurses als Baum (Ordner, Dateien, Übungen, Foren) | `ilias ls <kurs\|ref_id> [--depth N]` |
+| F3 | **Must** | Inhalt eines Kurses als Baum (Ordner, Dateien, Übungen, Foren); Kurs per ID, Kursnummer oder Namensteil | `ilias ls <kurs> [--depth N]` |
 | F4 | **Must** | Fristen aller Übungen/Tests kursübergreifend, sortiert, mit Status (abgegeben ja/nein) | `ilias deadlines [--days 14] [--open-only]` |
-| F5 | **Must** | Dateien herunterladen, einzeln oder als Ordner | `ilias download <ref_id\|pfad> [-o DIR]` |
+| F5 | **Must** | Dateien eines Kurses lokal speichern (ganzer Kurs, Ordner oder Datei); im TTY erst nach `[j/N]` | `ilias download <kurs> [pfad] [-o DIR] [--confirm]` |
 | F6 | **Should** | Inkrementeller Sync aller Kurse in ein lokales Verzeichnis, nur neue oder geänderte Dateien | `ilias sync [--dry-run]` |
 | F7 | **Should** | Abgabe hochladen. Vorher Bestätigung (`--yes` zum Überspringen), danach den Abgabestatus erneut lesen und anzeigen | `ilias submit <übung> <datei…>` |
 | F8 | **Should** | Fristen als iCal exportieren bzw. den ILIAS-Kalender-Feed nutzen | `ilias deadlines --ics > fristen.ics` |
@@ -44,7 +66,32 @@ Erstnutzer ist Samuel. Er arbeitet auf mehreren Geräten (Mac und andere) und mi
 | F11 | **Could** | Suche im eigenen Material (Titel, später Volltext lokal) | `ilias search <begriff>` |
 | F12 | **Could** | Erinnerungen (z. B. 72 h, 24 h vor Frist) über einen externen Scheduler | `ilias deadlines --due-within 24h --exit-code` |
 
-Für alle Befehle gilt: `--json` gibt maschinenlesbare Daten aus, ohne Flag kommt eine Tabelle für Menschen. Exit-Codes sind dokumentiert (0 OK, 2 nicht eingeloggt, 3 Session abgelaufen, 4 Netzwerk/Server, 5 Parser-Fehler). Phase 2: Jeder Must- und Should-Befehl wird 1:1 zu einem MCP-Tool (`list_courses`, `list_deadlines`, `download_file`, `submit_assignment` …). Schreibende Tools wie `submit` und `join` brauchen eine ausdrückliche Bestätigung durch den Menschen (passt zum Owner-Gate-Konzept aus hai-mcp).
+Für alle Befehle gilt: `--json` gibt maschinenlesbare Daten aus; ohne Flag kommt eine
+Tabelle für Menschen, die auch bei einer Pipe (stdout kein TTY) automatisch JSON liefert.
+Prompts und Bestätigungen gehen auf stderr. Exit-Codes sind dokumentiert (0 OK, 2 nicht
+eingeloggt, 3 Session abgelaufen, 4 Netzwerk/Server, 5 Parser-Fehler; Details in
+INTERFACE.md). Phase 2: Jeder Must- und Should-Befehl wird 1:1 zu einem MCP-Tool
+(`list_courses`, `list_deadlines`, `download_file`, `submit_assignment` …). Schreibende
+Tools wie `submit` und `join` brauchen eine ausdrückliche Bestätigung durch den Menschen
+(passt zum Owner-Gate-Konzept aus hai-mcp).
+
+### 3.1 CLI-Verhalten der Nachrüstung (Muss)
+
+- **Positional statt IDs:** `ls` und `download` nehmen einen Kurs als positionalen
+  Suchbegriff (ID, Kursnummer oder Teilstring des Namens). Ein Pfad bei `download` ist
+  ebenfalls positional; Pflicht-Optionen gibt es nicht.
+- **Login ist interaktiv:** `login` fragt Benutzername, Passwort und – nur bei der HHN –
+  den TOTP-Code verdeckt ab. Passwort/TOTP werden nie als Flag, Env-Wert oder in der
+  Ausgabe akzeptiert. Danach gibt es `status` (wirkt als „wer bin ich?“) und `logout`.
+- **Echte Aktion `download`:** Vor dem ersten lokalen Schreibzugriff erscheinen Kurs,
+  Zielordner und Dateianzahl. Im TTY fragt das Tool auf stderr
+  `Download verbindlich? [j/N]` (Default Nein). Erst nach `j` werden alle Schreibschritte
+  ausgeführt. `--confirm`/`--yes` ist nur für Agenten gedacht; ohne TTY und ohne dieses
+  Flag bricht das Tool vor dem ersten Schreibzugriff ab.
+- **Basis-URL:** `ILIAS_CLI_BASE_URL` überschreibt die `base_url` der aktiven Instanz
+  (für Fake-Server und Tests). `ILIAS_CLI_CONFIG_DIR` bleibt unverändert.
+- **Session:** Keyring bevorzugt, sonst Datei mit Rechten `0600` unter
+  `$ILIAS_CLI_CONFIG_DIR` bzw. `~/.config/ilias-cli/`, nie im Arbeitsverzeichnis.
 
 ## 4. Schnittstellen: was erreichbar ist
 

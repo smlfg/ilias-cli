@@ -1,6 +1,9 @@
-# INTERFACE.md – Vertrag für Implementierungen (Login-Teil, F1 + A1–A6)
+# INTERFACE.md – Vertrag für Implementierungen
 
-Die Akzeptanztests unter `tests/acceptance/` testen **nur** diese Schnittstelle. Interne Modulstruktur ist frei, solange die Architektur-Vorgabe aus ANFORDERUNGEN.md §1 gilt (`ilias_core` = Logik, CLI = dünne Hülle).
+Die Akzeptanztests unter `tests/acceptance/` testen **nur** diese Schnittstelle. Interne
+Modulstruktur ist frei, solange die Architektur-Vorgabe aus ANFORDERUNGEN.md §1 gilt
+(`ilias_core` = Logik, CLI = dünne Hülle). Die UX-Spec steht in `docs/UX.md`; ihre drei
+Sitzungen (Installation+Login, `courses`/`ls`, `download` mit `[j/N]`) sind verbindlich.
 
 ## 1. Paket & Kommando
 - Python ≥ 3.11, Paketierung mit `uv` (`pyproject.toml`). Nach `uv sync` existiert das Konsolen-Kommando **`ilias`** im venv.
@@ -8,18 +11,51 @@ Die Akzeptanztests unter `tests/acceptance/` testen **nur** diese Schnittstelle.
 - Akzeptanztests brauchen nur `pytest` (dev-Gruppe) + stdlib. Sie starten `ilias` als **Subprozess** (venv neben `sys.executable` oder `$ILIAS_BIN`).
 
 ## 2. Befehle
+
+Alle Befehle nehmen Suchbegriffe **positional** (Name, Kursnummer oder ID), nicht als
+Pflicht-Option. `--instance` und `--debug` sind bei jedem Unterbefehl erlaubt; `--json`
+ist eine Option **des Unterbefehls** (`ilias status --json`, nicht `ilias --json status`).
+
 | Aufruf | Erfolg | Hinweise |
 |---|---|---|
-| `ilias login [--json]` | Exit 0, Session gespeichert | Fragt nacheinander **Benutzername**, **Passwort** (verdeckt), **TOTP-Code** ab. |
-| `ilias status [--json]` | Exit 0, wenn Session gültig | Prüft mit einem Request auf `{base_url}/ilias.php?baseClass=ilDashboardGUI`. |
-| `ilias logout [--json]` | Exit 0 (auch ohne Session) | Löscht Session aus Keyring **und** Datei. |
+| `ilias login [--instance NAME] [--json] [--browser] [--username NAME]` | Exit 0, Session gespeichert | Fragt nacheinander **Benutzername**, **Passwort** (verdeckt), bei der HHN **TOTP-Code** (verdeckt) ab. `--browser` nur ILIAS. |
+| `ilias status [--instance NAME] [--json]` | Exit 0, wenn Session gültig | Wirkt als „wer bin ich?“/whoami: prüft `{base_url}/ilias.php?baseClass=ilDashboardGUI`; zeigt Instanz, LMS und Login-Zustand, nie Cookies. |
+| `ilias logout [--instance NAME] [--json]` | Exit 0 (auch ohne Session) | Idempotent. Löscht Session aus Keyring **und** Datei. |
+| `ilias courses [--instance NAME] [--json]` | Exit 0, Liste | Eigene Kurse/Gruppen mit ID, Name, Semester. Rein lesend. |
+| `ilias ls <kurs> [--depth N] [--instance NAME] [--json]` | Exit 0, Baum | `<kurs>` ist ID, Kursnummer oder Teilstring von Name/Kurzname (positional). Rein lesend. |
+| `ilias download <kurs> [pfad] [-o DIR] [--confirm\|--yes] [--dry-run] [--force] [--instance NAME] [--json]` | Exit 0, Dateien lokal | `<kurs>` wie bei `ls`, `pfad` optional relativ zum Kurs oder eine Datei-ref_id. Schreibt **nur lokal**; Server wird nie verändert. |
 
-- `--json` ist eine Option **des Unterbefehls** (`ilias status --json`, nicht `ilias --json status`).
-- Mit `--json` steht auf stdout genau ein JSON-Objekt. Für `status`/`logout` wird das strikt geprüft; bei `login` ist Prompt-Text vor dem JSON toleriert (besser: Prompts auf stderr). JSON-Ausgaben enthalten nie Cookies.
-- Kein `--password`-Flag (A1).
+Weitere Regeln:
+
+- **Kein `--password`/`--totp`-Flag** und keine Credential-Env (A1/A2). Zugangsdaten kommen
+  ausschließlich aus der verdeckten interaktiven Eingabe. `ILIAS_CLI_BASE_URL` ist keine
+  Credential-Variable.
+- **Mehrdeutige Kurse:** Passen mehrere Kurse auf den Suchbegriff, listet das Tool die
+  Treffer mit Nummer und endet mit Exit 1 (ohne TTY: Liste + Hinweis). Im TTY darf eine
+  nummerierte Auswahl angeboten werden.
+- **`download`-Bestätigung:** Im TTY erscheinen vor dem ersten Schreibzugriff Kurs,
+  Zielordner und Dateianzahl sowie auf **stderr** `Download verbindlich? [j/N]` (Default
+  Nein). Erst nach `j` werden alle Datei-GETs und lokalen Schreibschritte ausgeführt; bei
+  `N` endet der Befehl vor dem ersten Schreibzugriff mit Exit 1.
+- **Ohne TTY:** `download` ohne `--confirm`/`--yes` bricht vor dem ersten Schreibzugriff ab
+  (Exit 1) und nennt den nächsten Schritt (`--confirm` für Agenten). `--dry-run` sendet
+  keine Datei-GETs und schreibt nichts. `--confirm`/`--yes` sind **nur** für Agenten.
+- **Moodle:** `download` ist derzeit nur für ILIAS-Instanzen implementiert; Moodle endet
+  mit Exit 1 und einem Hinweis (`--instance hhn`).
+- **`--json`/Pipe:** Mit `--json` steht auf stdout genau ein JSON-Objekt. Ohne `--json`
+  liefert ein Nicht-TTY-stdout (Pipe/Agent) ebenfalls JSON; im TTY erscheint lesbarer Text.
+  Prompts, Fortschritt und Bestätigungen gehen immer auf stderr, JSON-Ausgaben enthalten
+  nie Cookies, Passwörter oder TOTP-Codes.
+- **EOF/Strg+C:** Abbruch an einem Prompt (EOF, Strg+C) endet ohne Traceback mit Exit 1
+  bzw. 130 und der Meldung „Abgebrochen.“.
+- `--version` und jeder `--help`-Aufruf enden mit Exit 0.
 
 ### Eingabe ohne TTY
-Die Tests starten `ilias` ohne Controlling-Terminal (`start_new_session=True`) und schreiben `Benutzername\nPasswort\nTOTP\n` auf stdin. `typer.prompt(..., hide_input=True)` / `getpass` lesen dann von stdin – das reicht. Die Reihenfolge Benutzername → Passwort → TOTP muss eingehalten werden (TOTP darf auch erst nach dem Passwort-POST abgefragt werden).
+Die Tests starten `ilias login` ohne Controlling-Terminal (`start_new_session=True`) und
+schreiben `Benutzername\nPasswort\nTOTP\n` auf stdin. `typer.prompt(..., hide_input=True)`
+/ `getpass` lesen dann von stdin – das reicht. Die Reihenfolge Benutzername → Passwort →
+TOTP muss eingehalten werden (TOTP darf auch erst nach dem Passwort-POST abgefragt
+werden).
 
 ## 3. Exit-Codes
 | Code | Bedeutung |
@@ -30,16 +66,34 @@ Die Tests starten `ilias` ohne Controlling-Terminal (`start_new_session=True`) u
 | 3 | Session abgelaufen (Redirect auf `login.php`/Login-Formular). **Kein** automatischer Re-Login |
 | 4 | Netzwerk-/Serverfehler (Verbindung fehlgeschlagen, HTTP ≥ 500) |
 | 5 | Parser-Fehler (unerwartetes HTML, z. B. kein Keycloak-Formular) |
+| 130 | Abbruch per Strg+C (kein Traceback) |
+
+Die Codes 0–5 bleiben unverändert. Ein Abbruch durch `N` oder fehlendes TTY bei
+`download` nutzt 1; „nicht eingeloggt“ bleibt 2.
 
 ## 4. Konfiguration
 - Datei `config.toml` mit `base_url` (z. B. `https://ilias.hs-heilbronn.de`, darf einen Pfad-Präfix haben wie `https://host/ilias`) und `client_id` (z. B. `iliashhn`).
 - Ort: `$ILIAS_CLI_CONFIG_DIR/config.toml`, sonst `~/.config/ilias-cli/config.toml` (`~` = `$HOME`).
+- **Basis-URL per Env:** `ILIAS_CLI_BASE_URL` überschreibt die `base_url` der aktiven
+  Instanz (nach `--instance`/config.toml, vor dem eingebauten Default). Sie ersetzt
+  **nur** die URL, nicht `ILIAS_CLI_CONFIG_DIR`, Client-ID oder Session-Pfad. Damit laufen
+  UX-Gate und Akzeptanztests gegen einen Fake-Server.
+- Weitere Env: `ILIAS_CLI_CONFIG_DIR` (Konfigurationsordner), `ILIAS_CLI_REQUEST_INTERVAL`
+  (Sekunden zwischen Requests, Default 1) und `ILIAS_CLI_MAX_REQUESTS` (Crawl-Obergrenze,
+  Default 300). Ungültige Zahlen werden ohne Traceback ignoriert bzw. als Fehler gemeldet.
 - Dateien, die das Tool schreibt (z. B. Session-Fallback), liegen in `$ILIAS_CLI_CONFIG_DIR` bzw. `~/.config/ilias-cli/`, **nie** im Arbeitsverzeichnis.
 - Defaults (HHN), wenn keine Datei existiert: `https://ilias.hs-heilbronn.de`, `iliashhn`.
+- Datumsabhängige Befehle (derzeit keine) nutzen `ILIAS_CLI_HEUTE=JJJJ-MM-TT` nur für
+  deterministische Tests; die Bedienung im Terminal bleibt „heute/morgen/woche“.
 
 ## 5. Session-Speicher (A4)
-- Bevorzugt `keyring` (die Tests setzen `PYTHON_KEYRING_BACKEND` auf ein Test-Backend und lesen dessen Inhalt).
+- Bevorzugt `keyring` (Service `ilias-cli`, Benutzer
+  `session:<instance>|<base_url>|<client_id>`; die Tests setzen
+  `PYTHON_KEYRING_BACKEND` auf ein Test-Backend und lesen dessen Inhalt).
 - Ist kein Keyring nutzbar (`keyring.backends.fail.Keyring`, wirft `NoKeyringError`), Fallback auf eine Datei mit Rechten **0600**.
+- **Session-Pfad (Fallback):** `$ILIAS_CLI_CONFIG_DIR/session-<instance>.json`, sonst
+  `~/.config/ilias-cli/session-<instance>.json`. Die Datei enthält nur die Cookies als
+  JSON, wird mit Modus `0600` geschrieben und nie im Arbeitsverzeichnis abgelegt.
 - Gespeichert werden nur ILIAS-Cookies (z. B. `PHPSESSID`, `ilClientId`), keine Keycloak-Cookies (`KEYCLOAK_IDENTITY`, `AUTH_SESSION_ID`), nie Passwort oder TOTP.
 
 ## 6. HTTP-Flow (A3), wie ihn der Fake-Server nachbildet
