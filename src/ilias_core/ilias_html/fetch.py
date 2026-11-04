@@ -166,7 +166,7 @@ class Fetcher:
         self.interval = _env_float("ILIAS_CLI_REQUEST_INTERVAL", DEFAULT_REQUEST_INTERVAL)
         self._client = client or self._build_client()
         self._cookies = self.store.load()
-        if not self._cookies:
+        if self._cookies is None:
             raise NotLoggedInError(
                 f"Keine gespeicherte Session für {self.key}.",
                 hint=f"Erst `ilias login --instance {self.key}` ausführen.",

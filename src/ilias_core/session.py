@@ -77,12 +77,14 @@ class SessionStore:
     def save(self, cookies: dict[str, str]) -> None:
         payload = json.dumps(cookies, separators=(",", ":"))
         keyring = self._keyring()
-        if keyring is not None:
+        if cookies and keyring is not None:
             try:
                 keyring.set_password(SERVICE_NAME, self.username, payload)
                 return
             except Exception:
                 pass
+        # Leere (synthetische) Sessions sind nur eine Login-Marke und gehören
+        # nicht in den Schlüsselbund; sie liegen als 0600-Datei daneben.
         self._write_file(payload)
 
     def load(self) -> dict[str, str] | None:

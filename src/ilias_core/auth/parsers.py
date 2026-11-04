@@ -7,7 +7,7 @@ arbeiten auf einem HTML-String und geben strukturierte Daten zurück.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -101,9 +101,31 @@ def _soup(html: str) -> BeautifulSoup:
     return BeautifulSoup(html, "html.parser")
 
 
+def _resolve_action(action: str, base_url: str) -> str:
+    """Relative Formular-action auflösen, ohne ein Verzeichnis zu verdoppeln.
+
+    Keycloak-Formulare stehen auf ``…/login-actions/authenticate`` und tragen
+    teils ein relatives ``login-actions/…`` (Fake-Server/Fixtures). ``urljoin``
+    würde daraus ``…/login-actions/login-actions/…`` machen. Beginnt der Pfad
+    bereits mit demselben ersten Segment, wird ab dem Host aufgelöst.
+    """
+
+    if not action:
+        return base_url
+    parts = urlsplit(action)
+    if parts.scheme or action.startswith("/"):
+        return urljoin(base_url, action)
+    first = action.split("/", 1)[0]
+    base = urlsplit(base_url)
+    base_first = base.path.lstrip("/").split("/", 1)[0]
+    if first and (base_first == first or base.path.rstrip("/").endswith("/" + first)):
+        base_url = f"{base.scheme}://{base.netloc}/"
+    return urljoin(base_url, action)
+
+
 def _resolved(form, base_url: str) -> HtmlForm:  # noqa: ANN001 - bs4-Element
     parsed = _parse_form(form)
-    parsed.action = urljoin(base_url, parsed.action)
+    parsed.action = _resolve_action(parsed.action, base_url)
     return parsed
 
 

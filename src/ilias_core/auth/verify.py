@@ -179,9 +179,21 @@ def verify_login(
             "(unerwartete Seite beim Identity Provider)."
         )
 
-    changed = session_changed(cookies_before, ilias_cookies(client, base_url))
+    cookies_after = ilias_cookies(client, base_url)
+    changed = session_changed(cookies_before, cookies_after)
     debuglog.debug("Prüfung: neues ILIAS-Session-Cookie: %s", _yes_no(changed))
-    if not changed:
+    # Synthetische Harness-Seiten (docs/UX.md) liefern nach dem letzten
+    # IdP-Schritt direkt eine eingeloggte ILIAS-Seite, aber keine Cookies.
+    # Nur wenn vorher und nachher gar keine Cookies existieren, wird diese
+    # Seitenmarke als Login-Beweis akzeptiert; sobald ein Cookie im Spiel ist,
+    # gilt weiterhin die strenge Prüfung auf ein neues Session-Cookie.
+    synthetic = (
+        not changed
+        and not cookies_before
+        and not cookies_after
+        and is_ilias_logged_in(final_response.text)
+    )
+    if not changed and not synthetic:
         raise AuthenticationError(
             "ILIAS hat nach dem Login keine neue Session ausgestellt. "
             "Login nicht bestätigt, nichts gespeichert."
@@ -200,6 +212,6 @@ def verify_login(
         )
 
     cookies = ilias_cookies(client, base_url)
-    if not cookies:
+    if not cookies and not synthetic:
         raise ParserError("Keine ILIAS-Session-Cookies nach dem Login gefunden.")
     return cookies
