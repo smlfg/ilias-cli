@@ -9,6 +9,16 @@ CLI (später MCP-Server) für **ILIAS** (Hochschule Heilbronn, Uni Mannheim) und
 (Hochschule Mannheim). Anforderungen: [ANFORDERUNGEN.md](ANFORDERUNGEN.md), Vertrag:
 [INTERFACE.md](INTERFACE.md), Moodle-Details: [MOODLE.md](MOODLE.md).
 
+## Schnellstart
+
+```bash
+pipx install git+https://github.com/smlfg/ilias-cli
+ilias login
+ilias courses
+ilias ls "Beispielkurs Programmierung"
+ilias download "Beispielkurs Programmierung"
+```
+
 ## Instanzen
 
 `ilias_core` hat ein Backend pro Plattform (`ilias_core.backends`: `IliasBackend`,
