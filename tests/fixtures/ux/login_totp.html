@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>TOTP-Code</title></head>
+<body>
+<!-- SYNTHETISCH: Konto-/Login-Seite, keine echten Zugangsdaten. -->
+<div id="kc-content">
+  <div id="kc-form">
+    <form id="kc-otp-login-form" action="login-actions/authenticate-otp?session_code=beispiel-session&amp;execution=beispiel-execution&amp;client_id=hhn_common_ilias&amp;tab_id=beispiel-tab" method="post">
+      <label for="otp">6-stelliger Code aus der Authenticator-App</label>
+      <input id="otp" name="otp" type="text" autocomplete="one-time-code">
+      <input type="hidden" name="credentialId" value="">
+      <input name="login" id="kc-login" type="submit" value="Anmelden">
+    </form>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Mit HHN-Account anmelden</title></head>
+<body>
+<!-- SYNTHETISCH: Konto-/Login-Seite, keine echten Zugangsdaten. Struktur nach live gesehenem Keycloak-Formular. -->
+<div id="kc-content">
+  <div id="kc-form">
+    <form id="kc-form-login" action="login-actions/authenticate?session_code=beispiel-session&amp;execution=beispiel-execution&amp;client_id=hhn_common_ilias&amp;tab_id=beispiel-tab" method="post">
+      <label for="username">Anmeldename oder E-Mail</label>
+      <input id="username" name="username" type="text" value="" autocomplete="username">
+      <label for="password">Passwort</label>
+      <input id="password" name="password" type="password" autocomplete="current-password">
+      <input type="hidden" id="id-hidden-input" name="credentialId" value="">
+      <input name="login" id="kc-login" type="submit" value="Anmelden">
+    </form>
+  </div>
+</div>
+</body>
+</html>
