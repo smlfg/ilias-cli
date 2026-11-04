@@ -50,6 +50,24 @@ def safe_name(name: str) -> str:
     return text[:_MAX_NAME]
 
 
+def course_folder_name(fullname: str, semester: str | None = None) -> str:
+    """Ordnername eines Kurses: der Semesterzusatz am Titelende entfällt.
+
+    ``Beispielkurs Programmierung (WiSe 2026/27)`` wird zu
+    ``Beispielkurs Programmierung``; ein Titel ohne Semester bleibt unverändert.
+    """
+
+    text = unicodedata.normalize("NFC", fullname or "").strip()
+    sem = unicodedata.normalize("NFC", semester or "").strip()
+    if not sem:
+        return text
+    for opening, closing in (("(", ")"), ("[", "]")):
+        suffix = f" {opening}{sem}{closing}"
+        if text.endswith(suffix) and text[: -len(suffix)].strip():
+            return text[: -len(suffix)].strip()
+    return text
+
+
 def file_name(name: str, suffix: str | None) -> str:
     base = safe_name(name)
     if suffix:

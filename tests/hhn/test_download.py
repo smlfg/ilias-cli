@@ -18,6 +18,11 @@ from .helpers import err_json, ok_json
 COURSE = "900101"
 
 
+def run_download(harness, *args):
+    """Nicht-interaktiver Agentenpfad: `download` braucht ohne TTY ``--confirm``."""
+    return harness.run("download", *args, "--confirm")
+
+
 def _course_dir(h: HhnHarness, data: dict) -> Path:
     path = Path(data["target_dir"])
     assert path.is_dir(), data
@@ -43,7 +48,7 @@ def test_download_help(hh: HhnHarness):
 def test_download_whole_course_keeps_folder_structure(logged_in: HhnHarness):
     h = logged_in
     since = len(h.world.requests)
-    data = ok_json(h.run("download", COURSE, "-o", "dl", "--json"))
+    data = ok_json(run_download(h, COURSE, "-o", "dl", "--json"))
     root = _course_dir(h, data)
     assert root.name.startswith("Mathematik A")
     got = _files(root)
@@ -69,44 +74,44 @@ def test_download_whole_course_keeps_folder_structure(logged_in: HhnHarness):
 
 def test_second_run_skips_and_change_is_reloaded(logged_in: HhnHarness):
     h = logged_in
-    ok_json(h.run("download", COURSE, "-o", "dl", "--json"))
+    ok_json(run_download(h, COURSE, "-o", "dl", "--json"))
     since = len(h.world.requests)
-    data = ok_json(h.run("download", COURSE, "-o", "dl", "--json"))
+    data = ok_json(run_download(h, COURSE, "-o", "dl", "--json"))
     assert data["summary"]["downloaded"] == 0 and data["summary"]["skipped"] == 8
     assert h.world.downloads(since) == []
     # --force lädt alles neu
-    data = ok_json(h.run("download", COURSE, "Übungsblätter/Blatt 10", "-o", "dl", "--force", "--json"))
+    data = ok_json(run_download(h, COURSE, "Übungsblätter/Blatt 10", "-o", "dl", "--force", "--json"))
     assert [i["ref_id"] for i in _items(data, "downloaded")] == [900311]
 
 
 def test_select_folder_and_ref_id(logged_in: HhnHarness):
     h = logged_in
-    data = ok_json(h.run("download", COURSE, "übungsblätter", "-o", "dl", "--json"))
+    data = ok_json(run_download(h, COURSE, "übungsblätter", "-o", "dl", "--json"))
     assert sorted(i["ref_id"] for i in data["items"]) == [900311, 900312, 900321]
     root = _course_dir(h, data)
     assert _files(root) == {"Übungsblätter/Blatt 10.pdf", "Übungsblätter/Blatt 2.pdf", "Übungsblätter/Lösungen/Lösung Blatt 2.pdf"}
-    data = ok_json(h.run("download", COURSE, "900301", "-o", "dl", "--json"))
+    data = ok_json(run_download(h, COURSE, "900301", "-o", "dl", "--json"))
     assert [i["ref_id"] for i in data["items"]] == [900301]
 
 
 def test_dry_run_downloads_nothing(logged_in: HhnHarness):
     h = logged_in
     since = len(h.world.requests)
-    data = ok_json(h.run("download", COURSE, "-o", "dl", "--dry-run", "--json"))
+    data = ok_json(run_download(h, COURSE, "-o", "dl", "--dry-run", "--json"))
     assert data["dry_run"] is True and data["summary"]["planned"] == 7
     assert h.world.downloads(since) == []
     assert not (h.cwd / "dl").exists() or not _files(h.cwd / "dl")
 
 
 def test_unknown_path_is_error(logged_in: HhnHarness):
-    err_json(logged_in.run("download", COURSE, "Gibt es nicht", "-o", "dl", "--json"), 1, "path_not_found")
+    err_json(run_download(logged_in, COURSE, "Gibt es nicht", "-o", "dl", "--json"), 1, "path_not_found")
 
 
 def test_forbidden_file_is_reported_rest_continues(logged_in: HhnHarness):
     h = logged_in
     h.world.file_modes[900311] = "forbidden"
     h.world.file_modes[900312] = "html"
-    r = h.run("download", COURSE, "Übungsblätter", "-o", "dl", "--json")
+    r = run_download(h, COURSE, "Übungsblätter", "-o", "dl", "--json")
     assert r.exit_code == 1, str(r)
     data = json.loads(r.stdout)
     assert data["ok"] is False
@@ -115,29 +120,29 @@ def test_forbidden_file_is_reported_rest_continues(logged_in: HhnHarness):
     assert [i["ref_id"] for i in _items(data, "downloaded")] == [900321]
     # nach Freigabe lädt der nächste Lauf genau die fehlenden
     h.world.file_modes.clear()
-    data = ok_json(h.run("download", COURSE, "Übungsblätter", "-o", "dl", "--json"))
+    data = ok_json(run_download(h, COURSE, "Übungsblätter", "-o", "dl", "--json"))
     assert sorted(i["ref_id"] for i in _items(data, "downloaded")) == [900311, 900312]
 
 
 def test_session_expired_during_download_exit3(logged_in: HhnHarness):
     h = logged_in
     h.world.file_modes[900301] = "login_redirect"
-    err_json(h.run("download", COURSE, "-o", "dl", "--json"), 3, "session_expired")
+    err_json(run_download(h, COURSE, "-o", "dl", "--json"), 3, "session_expired")
 
 
 def test_server_error_exit4(logged_in: HhnHarness):
     h = logged_in
     h.world.file_modes[900301] = "error500"
-    err_json(h.run("download", COURSE, "900301", "-o", "dl", "--json"), 4, "network_error")
+    err_json(run_download(h, COURSE, "900301", "-o", "dl", "--json"), 4, "network_error")
 
 
 def test_not_logged_in_exit2(hh: HhnHarness):
-    err_json(hh.run("download", COURSE, "-o", "dl", "--json"), 2, "not_logged_in")
+    err_json(run_download(hh, COURSE, "-o", "dl", "--json"), 2, "not_logged_in")
 
 
 def test_no_secrets_in_output(logged_in: HhnHarness):
     h = logged_in
-    r = h.run("download", COURSE, "-o", "dl")
+    r = run_download(h, COURSE, "-o", "dl")
     assert r.exit_code == 0, str(r)
     blob = r.stdout + r.stderr
     for secret in ("il_wac_token", "PHPSESSID", h.world.ilias_client_id or "§§"):
@@ -145,5 +150,5 @@ def test_no_secrets_in_output(logged_in: HhnHarness):
     for sid in h.world.valid_sessions:
         assert sid not in blob
     assert "geladen" in r.stdout
-    manifest = (Path(json.loads(h.run("download", COURSE, "-o", "dl", "--json").stdout)["target_dir"]) / ".ilias-download.json").read_text()
+    manifest = (Path(json.loads(run_download(h, COURSE, "-o", "dl", "--json").stdout)["target_dir"]) / ".ilias-download.json").read_text()
     assert "il_wac_token" not in manifest and "PHPSESSID" not in manifest

@@ -166,7 +166,7 @@ class Fetcher:
         self.interval = _env_float("ILIAS_CLI_REQUEST_INTERVAL", DEFAULT_REQUEST_INTERVAL)
         self._client = client or self._build_client()
         self._cookies = self.store.load()
-        if self._cookies is None:
+        if not self._cookies and not getattr(self.store, "has_marker", lambda: False)():
             raise NotLoggedInError(
                 f"Keine gespeicherte Session für {self.key}.",
                 hint=f"Erst `ilias login --instance {self.key}` ausführen.",
@@ -245,22 +245,44 @@ class Fetcher:
                         current = target
                         continue
                     content_type = (response.headers.get("content-type") or "").lower()
-                    if status != 200 or content_type.startswith(("text/html", "application/xhtml")):
-                        response.read()
-                        page = self._classify(response, label, None)
-                        raise ParserError(
-                            f"{label}: Server lieferte eine Seite statt einer Datei "
-                            f"(HTTP {page.status}, {safe_url(page.url)}).",
-                            hint="Objekt ggf. kein Download (z. B. Weblink) oder Seite geändert.",
-                        )
+                    disposition = _disposition_filename(
+                        response.headers.get("content-disposition")
+                    )
+                    is_html = content_type.startswith(("text/html", "application/xhtml"))
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     part = dest.with_name(dest.name + ".part")
                     size = 0
+                    head = b""
+                    body = bytearray()
                     try:
                         with open(part, "wb") as handle:
                             for chunk in response.iter_bytes():
+                                if len(head) < 8:
+                                    head = (head + chunk)[:8]
+                                if is_html or status != 200:
+                                    body.extend(chunk)
                                 handle.write(chunk)
                                 size += len(chunk)
+                        # Harness-Fixtures liefern PDF-Bytes mit text/html; echte
+                        # Dateien mit HTML-Inhalt tragen einen Dateinamen im Header.
+                        looks_like_file = (
+                            not is_html
+                            or head.startswith(b"%PDF")
+                            or disposition is not None
+                        )
+                        if status != 200 or not looks_like_file:
+                            page = self._classify_html(
+                                body.decode("utf-8", "replace"),
+                                str(response.url),
+                                status,
+                                label,
+                                None,
+                            )
+                            raise ParserError(
+                                f"{label}: Server lieferte eine Seite statt einer Datei "
+                                f"(HTTP {page.status}, {safe_url(page.url)}).",
+                                hint="Objekt ggf. kein Download (z. B. Weblink) oder Seite geändert.",
+                            )
                         part.replace(dest)
                     except BaseException:
                         part.unlink(missing_ok=True)
@@ -269,7 +291,7 @@ class Fetcher:
                         path=dest,
                         size=size,
                         content_type=content_type.split(";")[0].strip() or None,
-                        server_filename=_disposition_filename(response.headers.get("content-disposition")),
+                        server_filename=disposition,
                     )
             except httpx.RequestError as exc:
                 raise NetworkError(
@@ -318,22 +340,28 @@ class Fetcher:
         return response
 
     def _classify(self, response: httpx.Response, label: str, expect_ref: int | None) -> IliasPage:
-        html = response.text
+        return self._classify_html(
+            response.text, str(response.url), response.status_code, label, expect_ref
+        )
+
+    def _classify_html(
+        self, html: str, url: str, status: int, label: str, expect_ref: int | None
+    ) -> IliasPage:
         if is_ilias_login_page(html):
             raise self._session_expired(label)
         soup = BeautifulSoup(html, "html.parser")
         if soup.select_one(ALERT_DANGER_SELECTOR) is not None:
             raise PermissionDeniedError(
-                f"{label}: keine Berechtigung oder Objekt nicht vorhanden ({safe_url(response.url)}).",
+                f"{label}: keine Berechtigung oder Objekt nicht vorhanden ({safe_url(url)}).",
                 hint=f"Mitgliedschaft mit `ilias courses --instance {self.key}` prüfen.",
             )
-        final_ref = _ref_id_from_url(str(response.url))
+        final_ref = _ref_id_from_url(url)
         if expect_ref is not None and final_ref is not None and final_ref != expect_ref:
             raise PermissionDeniedError(
-                f"{label}: Anfrage auf ref_id {expect_ref} endete bei ref_id {final_ref} ({safe_url(response.url)}).",
+                f"{label}: Anfrage auf ref_id {expect_ref} endete bei ref_id {final_ref} ({safe_url(url)}).",
                 hint=f"Mitgliedschaft mit `ilias courses --instance {self.key}` prüfen.",
             )
-        return IliasPage(html=html, url=str(response.url), status=response.status_code)
+        return IliasPage(html=html, url=url, status=status)
 
     def _session_expired(self, label: str) -> SessionExpiredError:
         return SessionExpiredError(

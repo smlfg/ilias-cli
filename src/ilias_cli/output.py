@@ -311,14 +311,29 @@ def print_download_progress(item) -> None:
     err_console.print(download_line(item), highlight=False)
 
 
+def print_download_plan(result) -> None:
+    """Zusammenfassung vor der Bestätigung (stderr, damit stdout sauber bleibt)."""
+
+    planned = result.count("planned")
+    current = result.count("skipped")
+    course = result.course.get("fullname") or result.course.get("shortname") or "?"
+    err_console.print(f"Kurs: {escape(str(course))}", highlight=False)
+    err_console.print(f"Zielordner: {escape(result.target_dir)}", highlight=False)
+    err_console.print(
+        f"Dateien: {len(result.items)} (neu {planned}, aktuell {current})",
+        highlight=False,
+    )
+
+
 def print_download(result) -> None:
     s = {status: result.count(status) for status in ("downloaded", "skipped", "planned", "failed")}
-    parts = []
     if result.dry_run:
-        parts.append(f"{s['planned']} würden geladen")
-    else:
-        parts.append(f"{s['downloaded']} geladen")
-    parts.append(f"{s['skipped']} übersprungen")
+        out_console.print(f"Geplant: {s['planned']} Datei(en) → {escape(result.target_dir)}")
+        return
+    out_console.print(
+        f"Heruntergeladen: {s['downloaded']} Datei(en) → {escape(result.target_dir)}"
+    )
+    if s["skipped"]:
+        out_console.print(f"[dim]{s['skipped']} übersprungen (aktuell/offline)[/dim]")
     if s["failed"]:
-        parts.append(f"[red]{s['failed']} fehlgeschlagen[/red]")
-    out_console.print(", ".join(parts) + f" → {escape(result.target_dir)}")
+        out_console.print(f"[red]{s['failed']} fehlgeschlagen[/red]")

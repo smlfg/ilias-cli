@@ -8,6 +8,7 @@ wählt das Backend (``ilias`` für ``hhn``/``uni-mannheim``, ``moodle`` für
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from typing import Any
 
@@ -15,7 +16,7 @@ import typer
 
 from ilias_core import debuglog
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
-from ilias_core.errors import AbortedError, IliasError
+from ilias_core.errors import AbortedError, CourseAmbiguousError, IliasError
 from ilias_core.models import (
     CourseContentsResult,
     CoursesResult,
@@ -126,6 +127,14 @@ def _run(
 
 def _is_moodle(service: Service) -> bool:
     return service.instance.lms == BACKEND_MOODLE
+
+
+def _choose_kurs(exc: CourseAmbiguousError) -> int | None:
+    """Bei mehreren Treffern im TTY nummeriert auswählen; sonst Fehler weiterreichen."""
+
+    if not exc.candidates or not sys.stdin.isatty():
+        return None
+    return prompts.ask_choice(exc.candidates)
 
 
 # ---------------------------------------------------------------- Befehle
@@ -256,7 +265,17 @@ def ls(
 
     if depth is not None and depth < 1:
         raise typer.BadParameter("--depth muss mindestens 1 sein.")
-    _, result = _run("ls", json_output, instance, debug, lambda service: service.ls(kurs, depth))
+
+    def op(service: Service) -> CourseContentsResult:
+        try:
+            return service.ls(kurs, depth)
+        except CourseAmbiguousError as exc:
+            selected = _choose_kurs(exc)
+            if selected is None:
+                raise
+            return service.ls(str(selected), depth)
+
+    _, result = _run("ls", json_output, instance, debug, op)
     assert isinstance(result, CourseContentsResult)
     if json_output:
         output.print_json(result.to_json_dict())
@@ -274,26 +293,64 @@ def download(
     out: str = typer.Option(".", "--out", "-o", help="Zielordner; darin entsteht ein Ordner pro Kurs."),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Nur anzeigen, was geladen würde."),
     force: bool = typer.Option(False, "--force", help="Auch unveränderte Dateien neu laden."),
+    confirm: bool = typer.Option(
+        False,
+        "--confirm",
+        "--yes",
+        help="Bestätigung für Agenten (ohne TTY); im Terminal fragt das Tool [j/N].",
+    ),
     instance: str | None = INSTANCE_OPTION,
     json_output: bool = JSON_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
     """Dateien eines Kurses herunterladen (F5), nur neue/geänderte. Derzeit nur ILIAS.
 
-    Exit 0: alles geladen oder aktuell. Exit 1: mindestens eine Datei verweigert
-    (Liste in der Ausgabe, der Rest wurde trotzdem geladen).
+    Im Terminal erscheinen Kurs, Zielordner und Dateianzahl, danach die Frage
+    ``Download verbindlich? [j/N]`` auf stderr. Erst nach ``j`` wird geschrieben.
+    Ohne TTY bricht der Befehl ohne ``--confirm`` vor dem ersten Schreibzugriff ab.
+    Exit 0: alles geladen oder aktuell. Exit 1: abgebrochen oder Datei verweigert.
     """
 
+    interactive = sys.stdin.isatty()
+    approved = confirm
     progress = None if json_output else output.print_download_progress
-    _, result = _run(
-        "download",
-        json_output,
-        instance,
-        debug,
-        lambda service: service.download(
-            kurs, pfad, out_dir=out, dry_run=dry_run, force=force, progress=progress
-        ),
-    )
+
+    def op(service: Service) -> DownloadResult:
+        selected = kurs
+        try:
+            plan = service.download(
+                selected, pfad, out_dir=out, dry_run=True, force=force, progress=None
+            )
+        except CourseAmbiguousError as exc:
+            chosen = _choose_kurs(exc)
+            if chosen is None:
+                raise
+            selected = str(chosen)
+            plan = service.download(
+                selected, pfad, out_dir=out, dry_run=True, force=force, progress=None
+            )
+        if dry_run:
+            return plan
+        output.print_download_plan(plan)
+        if not approved:
+            if not interactive:
+                raise AbortedError(
+                    "Abgebrochen: keine Bestätigung ohne Terminal.",
+                    hint=(
+                        "Für Agenten `--confirm` (oder `--yes`) ergänzen. "
+                        "Es wurde nichts geschrieben."
+                    ),
+                )
+            if not prompts.ask_yes_no("Download verbindlich?"):
+                raise AbortedError(
+                    "Abgebrochen.",
+                    hint="Es wurde nichts geschrieben. Für Agenten: `--confirm`.",
+                )
+        return service.download(
+            selected, pfad, out_dir=out, dry_run=False, force=force, progress=progress
+        )
+
+    _, result = _run("download", json_output, instance, debug, op)
     assert isinstance(result, DownloadResult)
     if json_output:
         output.print_json(result.to_json_dict())

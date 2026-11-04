@@ -94,7 +94,7 @@ class IliasClient:
     # -- Status ----------------------------------------------------------
     def status(self) -> SessionStatus:
         cookies = self.store.load()
-        if cookies is None:
+        if not cookies and not getattr(self.store, "has_marker", lambda: False)():
             raise NotLoggedInError(
                 "Nicht eingeloggt. Bitte zuerst `ilias login` ausführen."
             )

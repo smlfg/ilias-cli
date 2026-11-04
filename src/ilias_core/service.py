@@ -115,7 +115,9 @@ class Service:
                 f"Keine Datei im Kurs {course.fullname!r} passt auf {selector!r}.",
                 hint=f"`ilias ls {course.id} --instance {self.key}` zeigt Pfade und ref_ids.",
             )
-        course_dir = Path(out_dir).expanduser().resolve() / dl.safe_name(course.fullname)
+        course_dir = Path(out_dir).expanduser().resolve() / dl.safe_name(
+            dl.course_folder_name(course.fullname, course.semester)
+        )
         manifest = dl.load_manifest(course_dir)
         items: list[DownloadItem] = []
         try:

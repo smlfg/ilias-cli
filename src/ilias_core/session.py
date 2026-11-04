@@ -103,6 +103,16 @@ class SessionStore:
                     pass
         return self._read_file()
 
+    def has_marker(self) -> bool:
+        """True, wenn eine (ggf. leere) Datei-Session existiert.
+
+        Synthetische UX-Seiten stellen beim Login kein Cookie aus; die leere
+        Session-Datei dient dann als Login-Marke. Ein fehlender Eintrag bleibt
+        weiterhin "nicht eingeloggt".
+        """
+
+        return self._read_file() is not None
+
     def clear(self) -> None:
         keyring = self._keyring()
         if keyring is not None:
