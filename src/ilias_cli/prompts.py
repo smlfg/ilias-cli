@@ -5,6 +5,7 @@ Prompts gehen auf stderr, damit ``--json`` auf stdout sauber bleibt.
 
 from __future__ import annotations
 
+import getpass
 import sys
 
 import typer
@@ -16,12 +17,33 @@ def ask_username(label: str = "Benutzername") -> str:
     return typer.prompt(label, err=True)
 
 
+def _hidden(label: str) -> str:
+    """Verdeckte Eingabe ohne Echo; im TTY per ``getpass``, sonst von stdin.
+
+    ``getpass`` schaltet das Echo vor der Prompt-Ausgabe ab. Damit kann ein
+    Automat nicht versehentlich antworten, bevor die Eingabe bereit ist.
+    """
+
+    prompt = f"{label}: "
+    try:
+        if sys.stdin.isatty():
+            return getpass.getpass(prompt, stream=sys.stderr)
+        sys.stderr.write(prompt)
+        sys.stderr.flush()
+        line = sys.stdin.readline()
+    except (EOFError, KeyboardInterrupt):
+        raise AbortedError() from None
+    if line == "":
+        raise AbortedError()
+    return line.rstrip("\n")
+
+
 def ask_password() -> str:
-    return typer.prompt("Passwort", hide_input=True, confirmation_prompt=False, err=True)
+    return _hidden("Passwort")
 
 
 def ask_totp() -> str:
-    return typer.prompt("TOTP-Code", hide_input=True, confirmation_prompt=False, err=True)
+    return _hidden("TOTP-Code")
 
 
 def ask_choice(candidates: list[dict]) -> int:
