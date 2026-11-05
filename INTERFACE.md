@@ -36,7 +36,8 @@ Weitere Regeln:
 - **`download`-Bestätigung:** Im TTY erscheinen vor dem ersten Schreibzugriff Kurs,
   Zielordner und Dateianzahl sowie auf **stderr** `Download verbindlich? [j/N]` (Default
   Nein). Erst nach `j` werden alle Datei-GETs und lokalen Schreibschritte ausgeführt; bei
-  `N` endet der Befehl vor dem ersten Schreibzugriff mit Exit 1.
+  `N` endet der Befehl vor dem ersten Schreibzugriff mit Exit 0 (bewusste Ablehnung,
+  kein Fehler, nichts geschrieben).
 - **Ohne TTY:** `download` ohne `--confirm`/`--yes` bricht vor dem ersten Schreibzugriff ab
   (Exit 1) und nennt den nächsten Schritt (`--confirm` für Agenten). `--dry-run` sendet
   keine Datei-GETs und schreibt nichts. `--confirm`/`--yes` sind **nur** für Agenten.
@@ -68,8 +69,9 @@ werden).
 | 5 | Parser-Fehler (unerwartetes HTML, z. B. kein Keycloak-Formular) |
 | 130 | Abbruch per Strg+C (kein Traceback) |
 
-Die Codes 0–5 bleiben unverändert. Ein Abbruch durch `N` oder fehlendes TTY bei
-`download` nutzt 1; „nicht eingeloggt“ bleibt 2.
+Die Codes 0–5 bleiben unverändert. `N` auf die Download-Bestätigung ist eine bewusste
+Ablehnung und endet mit 0; ein fehlendes TTY ohne `--confirm` bricht mit 1 ab.
+„Nicht eingeloggt“ bleibt 2.
 
 ## 4. Konfiguration
 - Datei `config.toml` mit `base_url` (z. B. `https://ilias.hs-heilbronn.de`, darf einen Pfad-Präfix haben wie `https://host/ilias`) und `client_id` (z. B. `iliashhn`).

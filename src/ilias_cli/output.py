@@ -325,6 +325,12 @@ def print_download_plan(result) -> None:
     )
 
 
+def print_download_declined() -> None:
+    """Antwort ``N`` auf die Bestätigung: kein Fehler, nichts geschrieben."""
+
+    err_console.print("Abgebrochen. Es wurde nichts geschrieben.", highlight=False)
+
+
 def print_download(result) -> None:
     s = {status: result.count(status) for status in ("downloaded", "skipped", "planned", "failed")}
     if result.dry_run:

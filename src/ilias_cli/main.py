@@ -362,10 +362,8 @@ def download(
                     ),
                 )
             if not prompts.ask_yes_no("Download verbindlich?"):
-                raise AbortedError(
-                    "Abgebrochen.",
-                    hint="Es wurde nichts geschrieben. Für Agenten: `--confirm`.",
-                )
+                output.print_download_declined()
+                raise typer.Exit(code=0)
         return service.download(
             selected, pfad, out_dir=out, dry_run=False, force=force, progress=progress
         )
