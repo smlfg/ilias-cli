@@ -59,7 +59,6 @@ Datei mit Rechten 0600.
 
 ```ux-session
 $ pipx install git+https://github.com/smlfg/ilias-cli
-< ilias
 $ ilias login
 < Benutzername:
 > beispiel@example.invalid
@@ -95,11 +94,13 @@ $ ilias ls "Beispielkurs Programmierung"
 `download` zeigt zuerst Kurs, Zielordner und Anzahl der Dateien. Danach fragt es
 mit Default Nein. Erst nach `j` wird die Datei geschrieben; bei `N` oder ohne
 TTY ohne `--confirm` endet der Befehl vor dem ersten Schreibzugriff.
+`--force` lädt auch bereits vorhandene Dateien erneut, damit die Sitzung
+wiederholbar bleibt.
 
 ```ux-session
-$ ilias download "Beispielkurs Programmierung"
+$ ilias download "Beispielkurs Programmierung" --force
 < Kurs: Beispielkurs Programmierung (WiSe 2026/27)
-< Zielordner: ./Beispielkurs Programmierung
+<~ Zielordner: .*Beispielkurs Programmierung
 < Dateien: 1 (neu 1, aktuell 0)
 < Download verbindlich? [j/N]
 > j

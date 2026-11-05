@@ -17,7 +17,7 @@ pipx install git+https://github.com/smlfg/ilias-cli
 ilias login
 ilias courses
 ilias ls "Beispielkurs Programmierung"
-ilias download "Beispielkurs Programmierung"
+ilias download "Beispielkurs Programmierung" --force
 ```
 
 `ilias login` fragt Benutzername und Passwort **verdeckt** ab, bei der HHN zusätzlich den
