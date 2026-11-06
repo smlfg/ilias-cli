@@ -14,6 +14,11 @@ from typing import Any
 
 import typer
 
+try:  # Typer >= 0.20 bündelt Click als ``typer._click``.
+    from typer._click.exceptions import UsageError as _UsageError
+except ImportError:  # pragma: no cover - ältere Typer-Versionen
+    from click.exceptions import UsageError as _UsageError  # type: ignore[no-redef]
+
 from ilias_core import debuglog
 from ilias_core.config import BACKEND_MOODLE, BUILTIN_INSTANCES
 from ilias_core.errors import AbortedError, CourseAmbiguousError, IliasError
@@ -398,19 +403,81 @@ def download(
         raise typer.Exit(code=1)
 
 
+def _usage_command(exc: BaseException) -> str:
+    """Befehlsname für die JSON-Fehlerform (``ls``, ``courses``, …)."""
+
+    ctx = getattr(exc, "ctx", None)
+    if ctx is not None:
+        info = getattr(ctx, "info_name", None)
+        if info and info != "-":
+            return str(info)
+        name = getattr(getattr(ctx, "command", None), "name", None)
+        if name:
+            return str(name)
+    for token in sys.argv[1:]:
+        if not token.startswith("-"):
+            return token
+    return ""
+
+
+def _usage_failure(exc: BaseException, json_output: bool) -> int:
+    """Usage-/Subparser-Fehler melden; mit JSON genau ein Objekt auf stdout."""
+
+    try:
+        message = exc.format_message()  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - fremde Exception-Typen
+        message = str(exc)
+    if not message:
+        message = "Ungültige Aufrufparameter."
+    exit_code = int(getattr(exc, "exit_code", 2) or 2)
+    if json_output:
+        result = ErrorResult(
+            command=_usage_command(exc),
+            error_code="usage_error",
+            error_type=type(exc).__name__,
+            message=message,
+            exit_code=exit_code,
+            hint="`ilias <befehl> --help` zeigt die erwarteten Argumente.",
+        )
+        output.print_json(result.to_json_dict())
+        output.print_error(message, result.hint)
+    else:
+        try:
+            exc.show()  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - Notfall ohne Usage-Formatierung
+            output.print_error(message)
+    return exit_code
+
+
 def main() -> None:
     """Entry-Point (``ilias``). Fängt Core-Fehler und setzt den Exit-Code."""
 
+    json_output = _json_output("--json" in sys.argv[1:])
     try:
-        app()
+        result = app(standalone_mode=False)
+    except _UsageError as exc:
+        raise SystemExit(_usage_failure(exc, json_output)) from None
     except IliasError as exc:
+        if json_output:
+            output.print_json(
+                ErrorResult(
+                    command=_usage_command(exc),
+                    error_code=exc.code,
+                    error_type=type(exc).__name__,
+                    message=exc.message or str(exc),
+                    exit_code=exc.exit_code,
+                    hint=exc.hint,
+                ).to_json_dict()
+            )
         output.print_error(str(exc))
         raise SystemExit(exc.exit_code) from exc
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, typer.Abort):
         output.print_error("Abgebrochen.")
-        raise SystemExit(130) from None
+        raise SystemExit(130 if isinstance(sys.exc_info()[1], KeyboardInterrupt) else 1) from None
     except BrokenPipeError:
         raise SystemExit(0) from None
+    if isinstance(result, int) and result != 0:
+        raise SystemExit(result)
 
 
 if __name__ == "__main__":  # pragma: no cover
