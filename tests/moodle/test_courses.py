@@ -60,6 +60,16 @@ def test_semester_derivation_unit(timestamp, expected):
     assert semester_from_timestamp(timestamp) == expected
 
 
+# ------------------------------------------------------------------ Ausgabeformat
+def test_courses_without_json_flag_in_pipe_is_json(h: Harness):
+    """INTERFACE.md §2: stdout ohne TTY (Pipe/Agent) liefert ohne Flag JSON."""
+    assert_logged_in(h)
+    result = h.run("courses", "--instance", INSTANCE)
+    assert result.exit_code == 0, str(result)
+    data = result.json()
+    assert data["count"] == len(data["courses"]) > 0
+
+
 # ------------------------------------------------------------------ Menschen-Ausgabe
 def test_courses_human_table(h: Harness):
     """F2: Tabelle mit ID/Kurzname/Name/Semester, neuestes Semester zuerst."""

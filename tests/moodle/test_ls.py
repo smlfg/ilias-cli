@@ -86,6 +86,15 @@ def test_resolve_ambiguous_carries_candidates():
     assert {candidate["id"] for candidate in excinfo.value.candidates} == {1, 2}
 
 
+# ------------------------------------------------------------------ Ausgabeformat
+def test_ls_without_json_flag_in_pipe_is_json(h: Harness):
+    """INTERFACE.md §2: stdout ohne TTY (Pipe/Agent) liefert ohne Flag JSON."""
+    assert_logged_in(h)
+    result = h.run("ls", str(COURSE_ID), "--instance", INSTANCE)
+    assert result.exit_code == 0, str(result)
+    assert result.json()["course"]["id"] == COURSE_ID
+
+
 # ------------------------------------------------------------------ Auflösung (CLI)
 def test_ls_by_id(h: Harness):
     assert_logged_in(h)
@@ -224,7 +233,7 @@ LONG_URL = (
 def test_ls_url_module_shown_exactly_once_in_tree(h: Harness):
     """Bug 1: genau eine Link-Zeile `🔗 Modulname → URL`, keine Kindzeile."""
     assert_logged_in(h)
-    result = h.run("ls", str(COURSE_ID), "--instance", INSTANCE)
+    result = h.run_tty("ls", str(COURSE_ID), "--instance", INSTANCE)
     assert result.exit_code == 0, str(result)
     out = result.stdout
     # Modulzeile mit Name + Pfeil + URL
@@ -275,7 +284,7 @@ def test_ls_files_sorted_naturally_case_insensitive(h: Harness):
 
 def test_ls_german_module_labels(h: Harness):
     assert_logged_in(h)
-    result = h.run("ls", str(COURSE_ID), "--instance", INSTANCE)
+    result = h.run_tty("ls", str(COURSE_ID), "--instance", INSTANCE)
     assert result.exit_code == 0, str(result)
     assert "Terminplaner: Sprechstunde" in result.stdout, str(result)
     assert "Feedback: Rückmeldung" in result.stdout, str(result)
@@ -348,7 +357,7 @@ def test_ls_visibility_markers_in_json(h: Harness):
 
 def test_ls_visibility_markers_in_human_output(h: Harness):
     assert_logged_in(h)
-    result = h.run("ls", str(COURSE_ID), "--instance", INSTANCE)
+    result = h.run_tty("ls", str(COURSE_ID), "--instance", INSTANCE)
     assert result.exit_code == 0, str(result)
     assert "[gesperrt]" in result.stdout, str(result)
     assert "[verborgen]" in result.stdout, str(result)

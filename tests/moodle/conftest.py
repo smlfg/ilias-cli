@@ -182,6 +182,24 @@ class Harness:
         self.runs.append(result)
         return result
 
+    def run_tty(self, *args: str, timeout: float = 60) -> RunResult:
+        """Aufruf mit Pseudo-Terminal: prüft die menschliche Textausgabe (INTERFACE.md §2)."""
+
+        harness = Path(__file__).resolve().parents[1] / "harness"
+        if str(harness) not in sys.path:
+            sys.path.insert(0, str(harness))
+        from ux_session import PtySession
+
+        session = PtySession([ilias_executable(), *args], env=self.env(), cwd=str(self.cwd))
+        try:
+            code = session.wait_exit(timeout)
+        finally:
+            transcript = session.transcript
+            session.close()
+        result = RunResult(tuple(args), code if code is not None else -999, transcript, "")
+        self.runs.append(result)
+        return result
+
     def login(self, *extra: str, password: str = PASSWORD, username: str = USERNAME) -> RunResult:
         return self.run("login", *extra, stdin=f"{username}\n{password}\n")
 

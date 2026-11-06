@@ -236,3 +236,15 @@ def test_ux_session_download_bricht_ohne_tty_und_flag_ab(ux: UxHarness):
         text = output(result)
         assert "--confirm" in text or "Abgebrochen" in text or "TTY" in text, text
         assert not (ux.cwd / COURSE).exists(), "Es wurde trotz Abbruch geschrieben"
+
+
+def test_ux_session_download_confirm_pipe_liefert_json(ux: UxHarness):
+    """INTERFACE.md §2: auch `download --confirm` liefert ohne TTY genau ein JSON-Objekt."""
+    ux.write_session()
+    with FakeServer(session_spec(), REPO) as server:
+        result = ux.run(server.base_url, "download", COURSE, "--confirm")
+
+        assert result.returncode == 0, output(result)
+        data = json.loads(result.stdout)
+        assert data["ok"] is True
+        assert (ux.cwd / COURSE / "Blatt 10.pdf").is_file()

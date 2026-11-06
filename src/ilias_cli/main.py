@@ -85,6 +85,19 @@ DEBUG_OPTION = typer.Option(
 
 
 # ---------------------------------------------------------------- Hilfen
+def _stdout_is_tty() -> bool:
+    try:
+        return bool(sys.stdout.isatty())
+    except Exception:  # noqa: BLE001 - geschlossene/ersetzte Streams
+        return False
+
+
+def _json_output(explicit: bool) -> bool:
+    """JSON bei ``--json`` oder wenn stdout kein Terminal ist (INTERFACE.md §2)."""
+
+    return explicit or not _stdout_is_tty()
+
+
 def _fail(command: str, exc: IliasError, json_output: bool, service: Service | None) -> typer.Exit:
     """Fehler melden: JSON auf stdout (maschinenlesbar), Text auf stderr."""
 
@@ -177,6 +190,8 @@ def login(
 ) -> None:
     """Meldet sich an (ILIAS: OIDC/Keycloak oder SAML/Shibboleth; Moodle: Webservice-Token)."""
 
+    json_output = _json_output(json_output)
+
     def op(service: Service) -> Any:
         backend = service.backend
         if browser:
@@ -214,6 +229,7 @@ def status(
 ) -> None:
     """Prüft die gespeicherte Session (Exit 2: keine Session, Exit 3: abgelaufen)."""
 
+    json_output = _json_output(json_output)
     _, result = _run("status", json_output, instance, debug, lambda service: service.status())
     if isinstance(result, MoodleStatusResult):
         if json_output:
@@ -236,6 +252,7 @@ def logout(
 ) -> None:
     """Löscht die gespeicherte Session bzw. den Token der Instanz (lokal)."""
 
+    json_output = _json_output(json_output)
     service, result = _run("logout", json_output, instance, debug, lambda s: s.logout())
     assert isinstance(result, LogoutResult)
     if _is_moodle(service):
@@ -260,6 +277,7 @@ def courses(
 ) -> None:
     """Eigene Kurse auflisten (ID, Kurzname, Name, Semester). ILIAS und Moodle."""
 
+    json_output = _json_output(json_output)
     _, result = _run("courses", json_output, instance, debug, lambda service: service.courses())
     assert isinstance(result, CoursesResult)
     if json_output:
@@ -283,6 +301,7 @@ def ls(
 ) -> None:
     """Inhalt eines Kurses als Baum (Abschnitte, Module, Dateien). ILIAS und Moodle."""
 
+    json_output = _json_output(json_output)
     if depth is not None and depth < 1:
         raise typer.BadParameter("--depth muss mindestens 1 sein.")
 
@@ -331,6 +350,7 @@ def download(
     Exit 0: alles geladen oder aktuell. Exit 1: abgebrochen oder Datei verweigert.
     """
 
+    json_output = _json_output(json_output)
     interactive = sys.stdin.isatty()
     approved = confirm
     progress = None if json_output else output.print_download_progress
