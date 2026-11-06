@@ -1,7 +1,8 @@
 # Pflicht-QA (Schritt 6)
 
 Datum: 2026-11-06  
-Getesteter Stand: Commit `bf8aa6e` (Branch `main`), Version `0.1.0`  
+Getesteter Stand: Commit `bf8aa6e` (Branch `main`), Version `0.1.0`;  
+Nachprüfung der zwei FAILs auf `d240b8a`, Version `0.1.0`  
 Installation: orchestrator-seitig mit `pipx install git+https://github.com/smlfg/ilias-cli`
 in `scratch/pipx`; alle Aufrufe über `PATH=$PWD/scratch/pipx/bin:$PATH`.
 Synthetische Sitzungen gegen `tests/harness/fake_server.py` mit den Routen aus
@@ -10,17 +11,15 @@ bzw. mit einer bewusst ungültigen Session auf das Dashboard.
 
 ## Ergebnis
 
-**42 von 44 Prüfungen OK, 2 FAIL.**
+**44 von 44 Prüfungen OK, 0 FAIL** (nach Nachprüfung).
 
-Offene FAILs:
+Die beiden ursprünglichen FAILs sind behoben:
 
-1. **Kein automatisches JSON bei Pipe/Nicht-TTY-stdout** (Verstoß gegen
-   INTERFACE.md §2 und README „Ausgabe und Umgebung“).
-2. **Usage-Fehler mit `--json` liefern Text statt JSON** (Verstoß gegen die
-   AGENTS-Regel „Auch Usage-/Subparser-Fehler liefern mit `--json` genau ein
-   JSON-Objekt“).
+1. **Automatisches JSON bei Pipe/Nicht-TTY-stdout** – Fix `e7e0473`.
+2. **Usage-Fehler mit `--json` liefern JSON** – Fix `d240b8a`.
 
-Details in `scratch/QA-FAILS.md`. Code wurde im QA-Schritt nicht verändert.
+Details in `scratch/QA-FAILS.md`. Beide Befehlsgruppen wurden nach den Fixes
+live erneut ausgeführt (Fake-Server, Installation aus dem Arbeitsstand).
 
 ## Prüfungen
 
@@ -54,8 +53,8 @@ Details in `scratch/QA-FAILS.md`. Code wurde im QA-Schritt nicht verändert.
 | 26 | `--json` lesend | `ilias courses --json` | genau ein valides JSON-Objekt | OK | `python3 -m json.tool` OK, Kurs 900101 |
 | 27 | `--json` Download | `ilias download 900101 --confirm --json` | valides JSON, keine Secrets | OK | JSON parsebar, `downloaded`/`items` |
 | 28 | `--json` Fehler | `ilias courses --json` ohne Session | valides JSON, Exit 2 | OK | `{"ok": false, ... "exit_code": 2}`, Exit 2 |
-| 29 | JSON bei Pipe ohne Flag | `ilias courses \| cat`, `ilias ls ... \| cat`, `ilias status \| cat`, `ilias download ... --confirm \| cat` | genau ein JSON-Objekt | **FAIL** | Pipe-Ausgabe ist Tabelle/Baum/Text (Exit 0), kein JSON |
-| 30 | Usage-Fehler mit `--json` | `ilias ls --json`; `ilias ls 900101 --depth 0 --json` | JSON-Objekt, kein Traceback | **FAIL** | Typer-Usage-Text auf stderr, nichts auf stdout, Exit 2 |
+| 29 | JSON bei Pipe ohne Flag | `ilias courses \| cat`, `ilias ls ... \| cat`, `ilias status \| cat`, `ilias download ... --confirm \| cat` | genau ein JSON-Objekt | OK (nach Fix e7e0473) | vier Aufrufe Exit 0; stdout je valides JSON (`json.tool` OK), z. B. Kurs 900101 und Download `ok: true` |
+| 30 | Usage-Fehler mit `--json` | `ilias ls --json`; `ilias ls 900101 --depth 0 --json` | JSON-Objekt, kein Traceback | OK (nach Fix d240b8a) | Exit 2; stdout je `{"ok": false, ... "error": {"code": "usage_error"} ...}`, `json.tool` OK, kein Traceback |
 | 31 | Falsche Basis-URL (Netz) | `ILIAS_CLI_BASE_URL=http://127.0.0.1:9 ilias courses` | Exit 4, nächster Schritt | OK | `Verbindung fehlgeschlagen`, Hinweis VPN/Erreichbarkeit, Exit 4 |
 | 32 | Ungültige Basis-URL | `ILIAS_CLI_BASE_URL=ftp://kaputt ilias courses` | Exit 1, kein Traceback | OK | `keine gültige http(s)-URL`, Hinweis, Exit 1 |
 | 33 | Status ohne Session | `ilias status` (leeres Config-Dir) | Exit 2, Hinweis `login` | OK | `Nicht eingeloggt ... ilias login`, Exit 2 |
